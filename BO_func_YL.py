@@ -2,7 +2,7 @@
 """
 Created on Wed Jan 28 11:03:57 2026
 
-@author: lyann
+@author: lecomte
 """
 
 
@@ -19,6 +19,11 @@ from matplotlib.ticker import FuncFormatter
 def rbf_kernel(X1, X2, length_scale, variance):
     sqdist = np.sum((X1[:, None, :] - X2[None, :, :])**2, axis=2)
     return variance * np.exp(-0.5 * sqdist / length_scale**2)
+
+
+def rbf_kernel_(X1, X2, gamma):
+    sqdist = np.sum((X1[:, None, :] - X2[None, :, :])**2, axis=2)
+    return np.exp(- gamma * sqdist)
 
 
 

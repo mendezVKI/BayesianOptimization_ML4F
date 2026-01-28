@@ -2,7 +2,7 @@
 """
 Updated on Wed Jan 28 10:43:30 2026
 
-@author: mendez, lecompte
+@author: mendez, lecomte
 """
 
 from __future__ import annotations  # this is to annotate the functions (-->)
@@ -15,7 +15,8 @@ from scipy.optimize import minimize
 from sklearn.metrics.pairwise import rbf_kernel
 from scipy.stats.qmc import LatinHypercube
 from scipy.stats import norm
-
+# Import the functions of the home-made BO
+from BO_func_YL import rbf_kernel_
 
 Array = np.ndarray  # short cut for numpy arrays
 # short cut for domain bounds as a list
@@ -95,7 +96,7 @@ class GPModel:
 
     Xs: Optional[Array] = None     # training inputs
     ys: Optional[Array] = None     # training outputs
-    alpha: Optional[Array] = None  # (K + σ²I)^(-1) y
+    alpha: Optional[Array] = None  # (Kss + σ²I)^(-1) y
     L: Optional[Array] = None      # Cholesky factor
 
     # optional: store last optimized theta in log-space
@@ -126,6 +127,14 @@ class BOResult:
     best_y: float
     history: List[Dict[str, Any]]
     gp: GPModel
+
+# collects all the information concerning the evaluation of 
+# the next point to sample
+@dataclass
+class AcqOptimizationResult:
+    x_next: Array          # (d,)
+    Xcand: Array           # (N, d)
+    a: Array               # (N,)
 
 
 # ----------------------------
@@ -277,7 +286,8 @@ def rbf_kernel_amp(X1: Array, X2: Array, l_c: float, sigma_f: float) -> Array:
       k(x,x') = sigma_f^2 * exp(-||x-x'||^2 / (2 l_c^2))
     """
     gamma = 0.5 / (l_c**2)
-    return (sigma_f**2) * rbf_kernel(X1, X2, gamma=gamma)
+    # return (sigma_f**2) * rbf_kernel(X1, X2, gamma=gamma)
+    return (sigma_f**2) * rbf_kernel_(X1, X2, gamma=gamma)
 
 
 def gp_fit(Xs, ys, l_c=0.3, sigma_f=1.0, sigma_y=0.1, jitter=1e-10):
@@ -572,7 +582,11 @@ def optimize_acquisition(
 
     # If we are not refining, stop here
     if method in ["random", "grid"]:
-        return x_best
+        return AcqOptimizationResult(
+        x_next=x_best,
+        Xcand=Xcand,
+        a=a,
+    )
 
     # ---- 3) refined: local improvement from the best few candidates
     n_starts = min(optim_cfg.n_restarts, Xcand.shape[0])
@@ -607,10 +621,26 @@ def optimize_acquisition(
                 a_best = a_try
                 x_best = x_try.copy()
 
-    return x_best
+    return AcqOptimizationResult(
+        x_next=x_best,
+        Xcand=Xcand,
+        a=a,
+    )
 
 def export_state(state: BOState, path_or_handler: Any) -> None:
     """Optional exporting."""
+    return
+
+
+def plt_current_state(gp: GPModel, ):
+    
+    
+    
+    
+    Xs = gp.Xs
+    ys = gp.ys
+    
+    
     return
 
 
@@ -668,11 +698,22 @@ def bayesian_optimization(
         acq = make_acquisition(acq_cfg, gp, y_best)
 
         # Optimize acquisition -> propose next x
-        x_next = optimize_acquisition(acq, bounds, optim_cfg, rng)  # (d,)
+        acq_res = optimize_acquisition(acq, bounds, optim_cfg, rng) # output a container
+        x_next = acq_res.x_next
+
 
         # Evaluate objective at proposed point
         y_next = float(np.asarray(f(x_next)).reshape(-1)[0])
-
+        
+        # Plot the current state
+        plot_current_state(
+            gp=gp,
+            acq_res=acq_res,
+            f_true=f,
+            bounds=bounds,
+            it=it,
+        )        
+        
         # Append data
         X = np.vstack([X, x_next.reshape(1, -1)])
         y = np.concatenate([y, np.array([y_next], dtype=float)])
