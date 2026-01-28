@@ -662,6 +662,7 @@ def plt_state(
     bounds: Bounds,
     it: int,
     plt_cfg: PlotConfig,
+    acq_cfg: AcqConfig, 
     n_plot: int = 400,
 ):
     """
@@ -737,19 +738,23 @@ def plt_state(
     axs[0].legend(fontsize=8, loc='upper right')
 
     # ---- Bottom: acquisition
-    axs[1].plot(Xcand, a, "C1", lw=1.5)
+    axs[1].plot(Xcand, a, "C1", lw=1.5, label=acq_cfg.kind)
     axs[1].fill_between(
         x= Xcand, 
         y1= a, 
         color= "C1",
         alpha= 0.2
     )
-    axs[1].scatter(acq_res.x_next, acq_res.a_best, c="C1")
+    axs[1].scatter(acq_res.x_next, acq_res.a_best, c="C1", label='Next query point')
+    axs[1].legend(fontsize=8, loc='lower right')
+
     axs[1].set_ylabel("acq(x)")
     axs[1].set_xlabel("x")
 
-    if plt_cfg.save_path:
-        figname = os.path.join(plt_cfg.save_path, "it_{it:2d}")
+    if plt_cfg.state_save_path:
+        if not os.path.exists(plt_cfg.state_save_path):
+            os.makedirs(plt_cfg.state_save_path)
+        figname = os.path.join(plt_cfg.state_save_path, f"it_{it:03d}.png")
         plt.savefig(figname, dpi=250)
     plt.show()
 
@@ -827,7 +832,8 @@ def bayesian_optimization(
                 f=f,
                 bounds=bounds,
                 it=it,
-                plt_cfg=plt_cfg
+                plt_cfg=plt_cfg, 
+                acq_cfg=acq_cfg
             )        
         
         # Append data

@@ -66,8 +66,7 @@ res = bo.bayesian_optimization(
     acq_cfg=bo.AcqConfig(),
     optim_cfg=bo.OptimConfig(),
     plt_cfg=bo.PlotConfig(plt_state_enabled=True,
-                          state_save_path="./GIF"),  
-
+                          state_save_path="./GIFs"),  
 )
 
     
