@@ -46,7 +46,7 @@ def gp_fit(X_train, y_train, params):
     return alpha, L
 
 
-def gp_predict(X_test, X_train, alpha, L, params):
+def gp_predict(X_test, X_train, alpha, L, params, return_cov=False):
     # Extract the hyper-parameters
     length_scale, variance, noise_std = params
 
@@ -57,8 +57,10 @@ def gp_predict(X_test, X_train, alpha, L, params):
     cov = K_ss - K_s @ v  # Covariance matrix
     var = np.diag(cov)    # Variance matrix (sigma **2)
     std  = np.sqrt(var)   # Standard deviation sigama
-    return mu, std
-
+    if return_cov:
+        return mu, std, cov
+    else:
+        return mu, std
 def log_marginal_likelihood(params, X_train, y_train, MLE_hist, param_hist):
     length_scale, variance, noise_std = np.exp(params)
     K = rbf_kernel(X_train, X_train, length_scale, variance) +  noise_std**2 * np.eye(len(X_train))
