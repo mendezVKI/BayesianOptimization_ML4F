@@ -15,8 +15,17 @@ from scipy.optimize import minimize
 from sklearn.metrics.pairwise import rbf_kernel
 from scipy.stats.qmc import LatinHypercube
 from scipy.stats import norm
+import matplotlib.pyplot as plt
+import os
 # Import the functions of the home-made BO
 from BO_func_YL import rbf_kernel_
+
+#Customization of the plot 
+plt.rc('text', usetex=True)      
+plt.rc('font', family='serif')
+plt.rc('xtick',labelsize=12)
+plt.rc('ytick',labelsize=12)
+plt.rc('axes',labelsize=12)
 
 Array = np.ndarray  # short cut for numpy arrays
 # short cut for domain bounds as a list
@@ -110,12 +119,13 @@ class GPModel:
 @dataclass
 class BOState:
     it: int
-    X: Array              # (n, d)
-    y: Array              # (n,)
-    gp: GPModel           # GP container (alpha, L, Xs, etc.)
-    acq: Any              # acquisition callable/object (your design)
-    x_next: Optional[Array] = None  # (d,)
-    y_next: Optional[float] = None  # scalar
+    X: Array
+    y: Array
+    gp: GPModel
+    acq: Any
+    acq_res: AcqOptimizationResult   
+    x_next: Optional[Array] = None
+    y_next: Optional[float] = None
 
 
 # collects all the info concerning the result of the BO
@@ -127,15 +137,26 @@ class BOResult:
     best_y: float
     history: List[Dict[str, Any]]
     gp: GPModel
+    states: List[BOState]  
+    
 
 # collects all the information concerning the evaluation of 
 # the next point to sample
 @dataclass
 class AcqOptimizationResult:
     x_next: Array          # (d,)
+    a_best: Array          # (d,)
     Xcand: Array           # (N, d)
     a: Array               # (N,)
-
+    
+    
+# Give information about possible plot and saving
+@dataclass
+class PlotConfig:
+    plt_state_enabled: bool = False              # master switch
+    state_save_path: Optional[str] = None    # directory to save plots
+    plot_every: int = 1                # plot every k iterations
+    
 
 # ----------------------------
 # Helper utilities (skeleton)
@@ -584,6 +605,7 @@ def optimize_acquisition(
     if method in ["random", "grid"]:
         return AcqOptimizationResult(
         x_next=x_best,
+        a_best=a_best,
         Xcand=Xcand,
         a=a,
     )
@@ -623,6 +645,7 @@ def optimize_acquisition(
 
     return AcqOptimizationResult(
         x_next=x_best,
+        a_best=a_best,
         Xcand=Xcand,
         a=a,
     )
@@ -632,18 +655,106 @@ def export_state(state: BOState, path_or_handler: Any) -> None:
     return
 
 
-def plt_current_state(gp: GPModel, ):
-    
-    
-    
-    
-    Xs = gp.Xs
-    ys = gp.ys
-    
-    
-    return
+def plt_state(
+    gp: GPModel,
+    acq_res,
+    f: Callable[[Array], Array],
+    bounds: Bounds,
+    it: int,
+    plt_cfg: PlotConfig,
+    n_plot: int = 400,
+):
+    """
+    Plot current BO state (1D only).
+
+    Top:
+      - noisy true function (single realization)
+      - observations
+      - GP posterior mean + 95% CI
+
+    Bottom:
+      - acquisition values on candidate set
+    """
+    # Safety checks
+    if gp.Xs is None or gp.ys is None:
+        return
+
+    if gp.Xs.shape[1] != 1:
+        # plotting only supported in 1D
+        return
+
+    # Build dense grid
+    x_min, x_max = bounds[0]
+    Xplot = np.linspace(x_min, x_max, n_plot).reshape(-1, 1)
+
+    # True (noisy) function
+    y_true = np.asarray(f(Xplot, noise_level=0)).reshape(-1)
+
+    # GP posterior
+    mu, var = gp_predict(
+        Xplot, gp.Xs, gp.alpha, gp.L,
+        l_c=gp.l_c, sigma_f=gp.sigma_f,
+        return_cov=False
+    ) 
+    mu = mu.reshape(-1)
+    std = np.sqrt(var.reshape(-1))
+
+    # Observations
+    Xs = gp.Xs.reshape(-1)
+    ys = gp.ys.reshape(-1)
+
+    # Acquisition values
+    Xcand = acq_res.Xcand.reshape(-1)
+    a = acq_res.a.reshape(-1)
+
+    idx = np.argsort(Xcand)
+    Xcand = Xcand[idx]
+    a = a[idx]
+
+    # Plot
+    fig, axs = plt.subplots(
+        2, 1, figsize=(6, 5),
+        constrained_layout=True,
+        sharex=True,
+        gridspec_kw=dict(height_ratios=[1, 1])
+    )
+
+    # ---- Top: function + GP
+    axs[0].plot(Xplot[:, 0], y_true, "k--", lw=1.0, label="True (unknown)")
+    axs[0].plot(Xplot[:, 0], mu, "C0", lw=2, label="$\\mu_{\\mathcal{GP}}$")
+    axs[0].fill_between(
+        Xplot[:, 0],
+        mu - 2 * std,
+        mu + 2 * std,
+        color="C0",
+        alpha=0.25,
+        label="GP $\\pm 2 \\sigma$",
+    )
+    axs[0].scatter(Xs, ys, c="k", s=20, zorder=10, label="Observations")
+
+    axs[0].set_ylabel("f(x)")
+    axs[0].set_title(f"Iteration {it}")
+    axs[0].legend(fontsize=8, loc='upper right')
+
+    # ---- Bottom: acquisition
+    axs[1].plot(Xcand, a, "C1", lw=1.5)
+    axs[1].fill_between(
+        x= Xcand, 
+        y1= a, 
+        color= "C1",
+        alpha= 0.2
+    )
+    axs[1].scatter(acq_res.x_next, acq_res.a_best, c="C1")
+    axs[1].set_ylabel("acq(x)")
+    axs[1].set_xlabel("x")
+
+    if plt_cfg.save_path:
+        figname = os.path.join(plt_cfg.save_path, "it_{it:2d}")
+        plt.savefig(figname, dpi=250)
+    plt.show()
 
 
+    
 # ----------------------------
 # Main BO function (skeleton)
 # ----------------------------
@@ -654,11 +765,13 @@ def bayesian_optimization(
     gp_cfg: GPConfig,
     acq_cfg: AcqConfig,
     optim_cfg: OptimConfig,
+    plt_cfg: PlotConfig,  
     callbacks: Optional[List[Callable[[BOState], None]]] = None,
     exporter: Optional[Any] = None,
     X_init: Optional[Array] = None,  # initial points (optional)
     y_init: Optional[Array] = None,  # initial values (optional)
     top_up_to_n_init: bool = True,   # if X_init has too few points, add more random ones
+    states: List[BOState] = [],     
 ) -> BOResult:
     """
     Bayesian Optimization driver (minimization by default).
@@ -705,29 +818,35 @@ def bayesian_optimization(
         # Evaluate objective at proposed point
         y_next = float(np.asarray(f(x_next)).reshape(-1)[0])
         
-        # Plot the current state
-        plot_current_state(
-            gp=gp,
-            acq_res=acq_res,
-            f_true=f,
-            bounds=bounds,
-            it=it,
-        )        
+        # Plot the current state if required
+        if plt_cfg.plt_state_enabled:
+        
+            plt_state(
+                gp=gp,
+                acq_res=acq_res,
+                f=f,
+                bounds=bounds,
+                it=it,
+                plt_cfg=plt_cfg
+            )        
         
         # Append data
         X = np.vstack([X, x_next.reshape(1, -1)])
         y = np.concatenate([y, np.array([y_next], dtype=float)])
 
-        # Build state for callbacks/export/logging
+        # Store all what was evaluated at this iteration in the state
         state = BOState(
             it=it,
-            X=X,
-            y=y,
+            X=X.copy(),
+            y=y.copy(),
             gp=gp,
             acq=acq,
+            acq_res=acq_res,      
             x_next=x_next,
             y_next=y_next,
         )
+        # Add the current state in the save list
+        states.append(state)
 
         # Record lightweight history
         history.append(
@@ -765,4 +884,5 @@ def bayesian_optimization(
         best_y=best_y,
         history=history,
         gp=gp,
+        states=states
     )
