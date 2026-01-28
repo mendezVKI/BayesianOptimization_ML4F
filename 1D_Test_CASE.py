@@ -44,14 +44,14 @@ plt.show()
 
 #%%
 
-LL = 1 # size of the domain
+LL = 2 # size of the domain
 bounds = [(-LL, LL)] # Define the bounds of the function
 
 
 res = bo.bayesian_optimization(
     f=func,
     bounds=bounds,
-    bo_cfg=bo.BOConfig(),
+    bo_cfg=bo.BOConfig(random_state=237),
     gp_cfg=bo.GPConfig(),
     acq_cfg=bo.AcqConfig(),
     optim_cfg=bo.OptimConfig(),

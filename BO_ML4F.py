@@ -729,7 +729,7 @@ def plt_state(
         mu + 2 * std,
         color="C0",
         alpha=0.25,
-        label="\\mu_{\\mathcal{GP}} $\\pm 2 \\sigma$",
+        label="$\\mu_{\\mathcal{GP}} \\pm 2 \\sigma$",
     )
     axs[0].scatter(Xs, ys, c="k", s=20, zorder=10, label="Observations")
 

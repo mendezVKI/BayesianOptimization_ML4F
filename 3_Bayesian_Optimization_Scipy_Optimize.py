@@ -125,6 +125,6 @@ for k in range(n_iter):
 
 imageio.mimsave(GIFNAME, images,duration=0.8)
 import shutil  # nice and powerfull tool to delete a folder and its content
-shutil.rmtree(FOLDER)
+# shutil.rmtree(FOLDER)
 
 
