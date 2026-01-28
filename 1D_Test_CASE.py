@@ -23,20 +23,10 @@ plt.rc('axes',labelsize=12)
 #%% Define the noisy function to fit
 
 def func(x, noise_level=0.1):
-    # noise = np.random.randn(len(x)) * noise_level
     noise = np.random.randn() * noise_level
     return np.sin(5 * x) * (1 - np.tanh(x ** 2)) + noise
            
-           
-def func_(x, noise_level=0.1):
-    x = np.asarray(x)
-
-    signal = np.sin(5 * x) * (1 - np.tanh(x ** 2))
-    noise = noise_level * np.random.randn(*signal.shape)
-
-    return signal + noise
-
-
+          
 # Visualization of the generated noisy function
 n_real = 100 # Number of training points
 LL = 2 # Size of the domain
@@ -70,6 +60,9 @@ res = bo.bayesian_optimization(
 )
 
     
+
+
+
 # plt.figure(figsize=(5, 3))
 # plt.scatter(res.X, res.y)
 # plt.xlabel("x"); plt.ylabel("y")
