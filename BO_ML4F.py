@@ -17,6 +17,8 @@ from scipy.stats.qmc import LatinHypercube
 from scipy.stats import norm
 import matplotlib.pyplot as plt
 import os
+import logging
+
 # Import the functions of the home-made BO
 from BO_func_YL import rbf_kernel_
 
@@ -152,11 +154,12 @@ class AcqOptimizationResult:
     
 # Give information about possible plot and saving
 @dataclass
-class PlotConfig:
+class SaveConfig:
     plt_state_enabled: bool = False              # master switch
-    state_save_path: Optional[str] = None    # directory to save plots
+    save_path: Optional[str] = None    # directory to save plots
     plot_every: int = 1                # plot every k iterations
-    
+    log_enabled: bool = True
+    log_filename: str = "run.log"
 
 # ----------------------------
 # Helper utilities (skeleton)
@@ -661,7 +664,7 @@ def plt_state(
     f: Callable[[Array], Array],
     bounds: Bounds,
     it: int,
-    plt_cfg: PlotConfig,
+    save_cfg: SaveConfig,
     acq_cfg: AcqConfig, 
     n_plot: int = 400,
 ):
@@ -751,15 +754,39 @@ def plt_state(
     axs[1].set_ylabel("acq(x)")
     axs[1].set_xlabel("x")
 
-    if plt_cfg.state_save_path:
-        if not os.path.exists(plt_cfg.state_save_path):
-            os.makedirs(plt_cfg.state_save_path)
-        figname = os.path.join(plt_cfg.state_save_path, f"it_{it:03d}.png")
+    if save_cfg.save_path:
+        if not os.path.exists(save_cfg.save_path):
+            os.makedirs(save_cfg.save_path)
+        figname = os.path.join(save_cfg.save_path, f"it_{it:03d}.png")
         plt.savefig(figname, dpi=250)
     plt.show()
 
 
-    
+def setup_logger(log_path: str, filename: str = "run.log") -> logging.Logger:
+    os.makedirs(log_path, exist_ok=True)
+
+    logger = logging.getLogger("BO")
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+
+    if logger.hasHandlers():
+        logger.handlers.clear()
+
+    fh = logging.FileHandler(
+        os.path.join(log_path, filename),
+        mode="w"
+    )
+
+    formatter = logging.Formatter(
+        "%(asctime)s | %(levelname)s | %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
+    )
+
+    fh.setFormatter(formatter)
+    logger.addHandler(fh)
+
+    return logger
+
 # ----------------------------
 # Main BO function (skeleton)
 # ----------------------------
@@ -770,7 +797,7 @@ def bayesian_optimization(
     gp_cfg: GPConfig,
     acq_cfg: AcqConfig,
     optim_cfg: OptimConfig,
-    plt_cfg: PlotConfig,  
+    save_cfg: SaveConfig,  
     callbacks: Optional[List[Callable[[BOState], None]]] = None,
     exporter: Optional[Any] = None,
     X_init: Optional[Array] = None,  # initial points (optional)
@@ -783,6 +810,23 @@ def bayesian_optimization(
     """
     rng = _rng(bo_cfg.random_state)
     callbacks = callbacks or []
+
+    logger = None
+    if save_cfg.log_enabled and save_cfg.save_path:
+        logger = setup_logger(
+            save_cfg.save_path,
+            save_cfg.log_filename
+        )
+    
+        logger.info("Starting Bayesian Optimization")
+        logger.info(f"Bounds: {bounds}")
+        logger.info(f"BOConfig: {bo_cfg}")
+        logger.info(f"GPConfig: {gp_cfg}")
+        logger.info(f"AcqConfig: {acq_cfg}")
+        logger.info(f"OptimConfig: {optim_cfg}")
+        logger.info(f"Random seed: {bo_cfg.random_state}")
+
+
 
     # ---- 1) initial points (either provided by user or sampled)
     X, y = init_dataset(
@@ -824,7 +868,7 @@ def bayesian_optimization(
         y_next = float(np.asarray(f(x_next)).reshape(-1)[0])
         
         # Plot the current state if required
-        if plt_cfg.plt_state_enabled:
+        if save_cfg.plt_state_enabled:
         
             plt_state(
                 gp=gp,
@@ -832,7 +876,7 @@ def bayesian_optimization(
                 f=f,
                 bounds=bounds,
                 it=it,
-                plt_cfg=plt_cfg, 
+                save_cfg=save_cfg, 
                 acq_cfg=acq_cfg
             )        
         
@@ -877,6 +921,17 @@ def bayesian_optimization(
         if exporter is not None and bo_cfg.export_every is not None:
             if (it + 1) % bo_cfg.export_every == 0:
                 export_state(state, exporter)
+
+        if save_cfg.log_enabled and save_cfg.save_path:
+            logger.info(
+                f"it={it:03d} | "
+                f"x_next={x_next} | "
+                f"y_next={y_next:.6e} | "
+                f"best_y={y_best:.6e} | "
+                f"l_c={gp.l_c:.3e} | "
+                f"sigma_f={gp.sigma_f:.3e} | "
+                f"sigma_y={gp.sigma_y:.3e}"
+            )
 
     # ---- 4) final best
     best_idx = int(np.argmin(y))

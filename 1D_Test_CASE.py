@@ -21,6 +21,7 @@ plt.rc('axes',labelsize=12)
 
 
 #%% Define the noisy function to fit
+np.random.seed(237)
 
 def func(x, noise_level=0.1):
     noise = np.random.randn() * noise_level
@@ -51,12 +52,12 @@ bounds = [(-LL, LL)] # Define the bounds of the function
 res = bo.bayesian_optimization(
     f=func,
     bounds=bounds,
-    bo_cfg=bo.BOConfig(random_state=237),
+    bo_cfg=bo.BOConfig(random_state=1234),
     gp_cfg=bo.GPConfig(),
     acq_cfg=bo.AcqConfig(),
     optim_cfg=bo.OptimConfig(),
-    plt_cfg=bo.PlotConfig(plt_state_enabled=True,
-                          state_save_path="./GIFs"),  
+    save_cfg=bo.SaveConfig(plt_state_enabled=True,
+                          save_path="./out"),  
 )
 
     
