@@ -19,8 +19,6 @@ import matplotlib.pyplot as plt
 import os
 import logging
 
-# Import the functions of the home-made BO
-from BO_func_YL import rbf_kernel_
 
 #Customization of the plot 
 plt.rc('text', usetex=True)      
@@ -156,8 +154,13 @@ class AcqOptimizationResult:
 @dataclass
 class SaveConfig:
     plt_state_enabled: bool = False              # master switch
+    plt_conv_enabled: bool = False
+    plt_hist_enabled: bool = False
+    plt_MLE_conv_enbable: bool = False
+    plt_all: bool = False
     save_path: Optional[str] = None    # directory to save plots
     plot_every: int = 1                # plot every k iterations
+    dpi: int = 250
     log_enabled: bool = True
     log_filename: str = "run.log"
 
@@ -304,14 +307,17 @@ def init_dataset(
 # GP kernel + fit / prediction (Cholesky reuse)
 # ----------------------------
 
+def rbf_kernel(X1, X2, gamma) -> Array:
+    sqdist = np.sum((X1[:, None, :] - X2[None, :, :])**2, axis=2)
+    return np.exp(- gamma * sqdist)
+
 def rbf_kernel_amp(X1: Array, X2: Array, l_c: float, sigma_f: float) -> Array:
     """
     RBF kernel with amplitude:
       k(x,x') = sigma_f^2 * exp(-||x-x'||^2 / (2 l_c^2))
     """
     gamma = 0.5 / (l_c**2)
-    # return (sigma_f**2) * rbf_kernel(X1, X2, gamma=gamma)
-    return (sigma_f**2) * rbf_kernel_(X1, X2, gamma=gamma)
+    return (sigma_f**2) * rbf_kernel(X1, X2, gamma=gamma)
 
 
 def gp_fit(Xs, ys, l_c=0.3, sigma_f=1.0, sigma_y=0.1, jitter=1e-10):
@@ -755,11 +761,58 @@ def plt_state(
     axs[1].set_xlabel("x")
 
     if save_cfg.save_path:
-        if not os.path.exists(save_cfg.save_path):
-            os.makedirs(save_cfg.save_path)
-        figname = os.path.join(save_cfg.save_path, f"it_{it:03d}.png")
+        fig_path = os.path.join(save_cfg.save_path, "GIF")
+        if not os.path.exists(fig_path):
+            os.makedirs(fig_path)
+        figname = os.path.join(fig_path, f"it_{it:03d}.png")
         plt.savefig(figname, dpi=250)
     plt.show()
+    
+    
+    
+def plt_conv(hist: List[Dict[str, Any]], save_cfg: SaveConfig):
+    
+    # Extract the values fromt eh list of dictionaries
+    its      = [h["it"] for h in hist]
+    best_y  = [h["best_y"] for h in hist]
+
+    # Plot 
+    plt.figure(figsize=(5,3))
+    plt.plot(its, best_y, "b-o")
+    plt.xlabel("Calls $n$")
+    plt.ylabel("min $f(x)$ after $n$ calls")
+    plt.grid(True)
+    if save_cfg.save_path:
+        # Ensure the saving path exists
+        if not os.path.exists(save_cfg.save_path):
+            os.makedirs(save_cfg.save_path)
+            
+        figname = os.path.join(save_cfg.save_path, "conv.png")
+        plt.savefig(figname, dpi=save_cfg.dpi)
+    plt.show()
+    
+    
+def plt_hist(hist: List[Dict[str, Any]], save_cfg: SaveConfig):
+    
+    # Extract the values fromt eh list of dictionaries
+    its      = [h["it"] for h in hist]
+    y_next  = [h["y_next"] for h in hist]
+
+    # Plot 
+    plt.figure(figsize=(5,3))
+    plt.plot(its, y_next, "b-o")
+    plt.xlabel("Calls $n$")
+    plt.ylabel("$f(x)$ at each call")
+    plt.grid(True)
+    if save_cfg.save_path:
+        # Ensure the saving path exists
+        if not os.path.exists(save_cfg.save_path):
+            os.makedirs(save_cfg.save_path)
+            
+        figname = os.path.join(save_cfg.save_path, "hist.png")
+        plt.savefig(figname, dpi=save_cfg.dpi)
+    plt.show()
+       
 
 
 def setup_logger(log_path: str, filename: str = "run.log") -> logging.Logger:
@@ -818,14 +871,12 @@ def bayesian_optimization(
             save_cfg.log_filename
         )
     
-        logger.info("Starting Bayesian Optimization")
         logger.info(f"Bounds: {bounds}")
         logger.info(f"BOConfig: {bo_cfg}")
         logger.info(f"GPConfig: {gp_cfg}")
         logger.info(f"AcqConfig: {acq_cfg}")
         logger.info(f"OptimConfig: {optim_cfg}")
         logger.info(f"Random seed: {bo_cfg.random_state}")
-
 
 
     # ---- 1) initial points (either provided by user or sampled)
@@ -863,12 +914,8 @@ def bayesian_optimization(
         acq_res = optimize_acquisition(acq, bounds, optim_cfg, rng) # output a container
         x_next = acq_res.x_next
 
-
-        # Evaluate objective at proposed point
-        y_next = float(np.asarray(f(x_next)).reshape(-1)[0])
-        
-        # Plot the current state if required
-        if save_cfg.plt_state_enabled:
+        # Plot the current state if required AND that we are in 1D case
+        if save_cfg.plt_state_enabled and len(bounds) == 1:
         
             plt_state(
                 gp=gp,
@@ -878,7 +925,10 @@ def bayesian_optimization(
                 it=it,
                 save_cfg=save_cfg, 
                 acq_cfg=acq_cfg
-            )        
+            )   
+            
+        # Evaluate objective at proposed point
+        y_next = float(np.asarray(f(x_next)).reshape(-1)[0])     
         
         # Append data
         X = np.vstack([X, x_next.reshape(1, -1)])
@@ -932,7 +982,13 @@ def bayesian_optimization(
                 f"sigma_f={gp.sigma_f:.3e} | "
                 f"sigma_y={gp.sigma_y:.3e}"
             )
-
+            
+    if save_cfg.plt_hist_enabled:
+        plt_hist(history, save_cfg=save_cfg)
+        
+    if save_cfg.plt_conv_enabled:
+        plt_conv(history, save_cfg=save_cfg)
+        
     # ---- 4) final best
     best_idx = int(np.argmin(y))
     best_x = X[best_idx].copy()
