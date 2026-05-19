@@ -1,0 +1,22 @@
+--- v0.1
+- Lib is working for multiple dimensions
+- plots ok for 1D
+- plots for 2D in refinement 
+- saving logs and/or everything (with h5 file) is working
+- 
+
+TODO: 
+	- finish to clean the plots for 2D
+	- 2D plots of mean, variance (or uncertainty), and expected improvement
+	- still the multi-fidelity upgrade to make but this is a BIG improvement and work
+
+
+--- v0.2
+- plot clean 
+
+--- v0.3
+- Scaler inside the fitting
+	TODO:
+	- change the notation, I don't like it like this
+	- X is for training and Xs is for new query point
+	- Kss is thus covariance matrix (or vector or scalar) between Xs and Xs

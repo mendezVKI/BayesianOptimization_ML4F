@@ -1,0 +1,19 @@
+2026-03-20 11:31:25 | INFO | Bounds: [(-2.0, 2.0)]
+2026-03-20 11:31:25 | INFO | BOConfig: BOConfig(n_init=10, n_iter=10, init_sampling='uniform', random_state=1234)
+2026-03-20 11:31:25 | INFO | GPConfig: GPConfig(l_c=0.3, sigma_f=1.0, sigma_y=0.1, jitter=1e-10, optimize_hyperparams=True, hpo_every=10, theta0_log=None, theta_bounds_log=None, rank_one=True, rank_one_threshold=1000)
+2026-03-20 11:31:25 | INFO | AcqConfig: AcqConfig(kind='EI', xi=0.01, kappa=2.0, maximize=False)
+2026-03-20 11:31:25 | INFO | OptimConfig: OptimConfig(method='random', global_method='refine', optimizer='L-BFGS-B', n_raw_samples=2000, grid_n_per_dim=20, n_restarts=10, local_maxiter=200)
+2026-03-20 11:31:25 | INFO | SaveConfig: SaveConfig(out_path='./sinus_1D_out\\2026-03-20_11-31-25', log_enabled=True, log_filename='log.log', export_enabled=False, export_filename='experiment.h5', export_every=1, plt_state_enabled=False, plt_conv_enabled=False, plt_hist_enabled=False, plt_MLE_conv_enbable=False, plt_all=True, plot_every=1, dpi=250)
+2026-03-20 11:31:25 | INFO | Random seed: 1234
+2026-03-20 11:31:25 | INFO | it  |    x_next     |      y_next     |      best_y     |    l_c    |  sigma_f  |  sigma_y
+2026-03-20 11:31:25 | INFO | -----------------------------------------------------------------------------------------------
+2026-03-20 11:31:25 | INFO | 000 |  -4.886237e-01 |  -3.584913e-01 |  -6.043429e-01 |    1.812e-02 |    2.576e-01 |    7.607e-05
+2026-03-20 11:31:25 | INFO | 001 |  -4.703938e-01 |  -4.685317e-01 |  -6.043429e-01 |    1.812e-02 |    2.576e-01 |    7.607e-05
+2026-03-20 11:31:25 | INFO | 002 |  -6.830300e-01 |   7.646451e-02 |  -6.043429e-01 |    1.812e-02 |    2.576e-01 |    7.607e-05
+2026-03-20 11:31:25 | INFO | 003 |  -9.048148e-01 |   2.468019e-01 |  -6.043429e-01 |    1.812e-02 |    2.576e-01 |    7.607e-05
+2026-03-20 11:31:25 | INFO | 004 |   1.822737e+00 |  -1.138399e-01 |  -6.043429e-01 |    1.812e-02 |    2.576e-01 |    7.607e-05
+2026-03-20 11:31:25 | INFO | 005 |  -1.562652e+00 |  -1.749295e-02 |  -6.043429e-01 |    1.812e-02 |    2.576e-01 |    7.607e-05
+2026-03-20 11:31:25 | INFO | 006 |  -1.492195e+00 |  -4.559857e-02 |  -6.043429e-01 |    1.812e-02 |    2.576e-01 |    7.607e-05
+2026-03-20 11:31:25 | INFO | 007 |   1.786596e+00 |   1.020608e-01 |  -6.043429e-01 |    1.812e-02 |    2.576e-01 |    7.607e-05
+2026-03-20 11:31:25 | INFO | 008 |  -1.444649e+00 |  -6.344223e-02 |  -6.043429e-01 |    1.812e-02 |    2.576e-01 |    7.607e-05
+2026-03-20 11:31:25 | INFO | 009 |  -1.403166e+00 |   3.032978e-03 |  -6.043429e-01 |    1.812e-02 |    2.576e-01 |    7.607e-05

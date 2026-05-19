@@ -1,0 +1,19 @@
+2026-03-20 11:31:15 | INFO | Bounds: [(-2.0, 2.0)]
+2026-03-20 11:31:15 | INFO | BOConfig: BOConfig(n_init=10, n_iter=10, init_sampling='uniform', random_state=1234)
+2026-03-20 11:31:15 | INFO | GPConfig: GPConfig(l_c=0.3, sigma_f=1.0, sigma_y=0.1, jitter=1e-10, optimize_hyperparams=True, hpo_every=10, theta0_log=None, theta_bounds_log=None, rank_one=True, rank_one_threshold=1000)
+2026-03-20 11:31:15 | INFO | AcqConfig: AcqConfig(kind='EI', xi=0.01, kappa=2.0, maximize=False)
+2026-03-20 11:31:15 | INFO | OptimConfig: OptimConfig(method='random', global_method='refine', optimizer='L-BFGS-B', n_raw_samples=2000, grid_n_per_dim=20, n_restarts=10, local_maxiter=200)
+2026-03-20 11:31:15 | INFO | SaveConfig: SaveConfig(out_path='./sinus_1D_out\\2026-03-20_11-31-15', log_enabled=True, log_filename='log.log', export_enabled=False, export_filename='experiment.h5', export_every=1, plt_state_enabled=False, plt_conv_enabled=False, plt_hist_enabled=False, plt_MLE_conv_enbable=False, plt_all=True, plot_every=1, dpi=250)
+2026-03-20 11:31:15 | INFO | Random seed: 1234
+2026-03-20 11:31:15 | INFO | it  |    x_next     |      y_next     |      best_y     |    l_c    |  sigma_f  |  sigma_y
+2026-03-20 11:31:15 | INFO | -----------------------------------------------------------------------------------------------
+2026-03-20 11:31:15 | INFO | 000 |  -3.853341e-01 |  -7.698113e-01 |  -5.817351e-01 |    1.813e-01 |    2.901e-01 |    3.489e-02
+2026-03-20 11:31:15 | INFO | 001 |  -3.306410e-01 |  -9.407583e-01 |  -7.698113e-01 |    1.813e-01 |    2.901e-01 |    3.489e-02
+2026-03-20 11:31:15 | INFO | 002 |  -2.365066e-01 |  -9.399775e-01 |  -9.407583e-01 |    1.813e-01 |    2.901e-01 |    3.489e-02
+2026-03-20 11:31:15 | INFO | 003 |  -2.675959e-01 |  -8.014052e-01 |  -9.407583e-01 |    1.813e-01 |    2.901e-01 |    3.489e-02
+2026-03-20 11:31:15 | INFO | 004 |  -7.878198e-02 |  -2.915105e-01 |  -9.407583e-01 |    1.813e-01 |    2.901e-01 |    3.489e-02
+2026-03-20 11:31:15 | INFO | 005 |  -2.970558e-01 |  -9.768998e-01 |  -9.407583e-01 |    1.813e-01 |    2.901e-01 |    3.489e-02
+2026-03-20 11:31:15 | INFO | 006 |   9.185801e-01 |  -2.179992e-01 |  -9.768998e-01 |    1.813e-01 |    2.901e-01 |    3.489e-02
+2026-03-20 11:31:15 | INFO | 007 |   5.987933e-01 |   1.119960e-01 |  -9.768998e-01 |    1.813e-01 |    2.901e-01 |    3.489e-02
+2026-03-20 11:31:15 | INFO | 008 |   1.224195e+00 |  -9.297243e-02 |  -9.768998e-01 |    1.813e-01 |    2.901e-01 |    3.489e-02
+2026-03-20 11:31:15 | INFO | 009 |  -1.998222e+00 |   1.087777e-01 |  -9.768998e-01 |    1.813e-01 |    2.901e-01 |    3.489e-02

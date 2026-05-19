@@ -1,0 +1,9 @@
+2026-03-20 11:40:19 | INFO | Bounds: [(-2.0, 2.0)]
+2026-03-20 11:40:19 | INFO | BOConfig: BOConfig(n_init=10, n_iter=10, init_sampling='uniform', random_state=1234)
+2026-03-20 11:40:19 | INFO | GPConfig: GPConfig(l_c=0.3, sigma_f=1.0, sigma_y=0.1, jitter=1e-10, optimize_hyperparams=True, hpo_every=10, theta0_log=None, theta_bounds_log=None, rank_one=True, rank_one_threshold=1000)
+2026-03-20 11:40:19 | INFO | AcqConfig: AcqConfig(kind='EI', xi=0.01, kappa=2.0, maximize=False)
+2026-03-20 11:40:19 | INFO | OptimConfig: OptimConfig(method='random', global_method='refine', optimizer='L-BFGS-B', n_raw_samples=2000, grid_n_per_dim=20, n_restarts=10, local_maxiter=200)
+2026-03-20 11:40:19 | INFO | SaveConfig: SaveConfig(out_path='./sinus_1D_out\\2026-03-20_11-40-19', log_enabled=True, log_filename='log.log', export_enabled=False, export_filename='experiment.h5', export_every=1, plt_state_enabled=True, plt_conv_enabled=True, plt_hist_enabled=True, plt_MLE_conv_enbable=True, plt_all=True, plot_every=1, dpi=250)
+2026-03-20 11:40:19 | INFO | Random seed: 1234
+2026-03-20 11:40:19 | INFO | it  |    x_next     |      y_next     |      best_y     |    l_c    |  sigma_f  |  sigma_y
+2026-03-20 11:40:19 | INFO | -----------------------------------------------------------------------------------------------

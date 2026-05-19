@@ -1,0 +1,19 @@
+2026-04-28 11:47:43 | INFO | Bounds: [(-10.0, 10.0)]
+2026-04-28 11:47:43 | INFO | BOConfig: BOConfig(n_init=5, n_iter=10, init_sampling='lhs', random_state=1234)
+2026-04-28 11:47:43 | INFO | GPConfig: GPConfig(l_c=0.2, sigma_f=1.0, sigma_y=0.1, jitter=1e-10, optimize_hyperparams=True, hpo_every=5, theta0_log=None, theta_bounds_log=[(-4.0, 0.0), (-3.0, 2.0), (-8.0, -1.0)], rank_one=True, rank_one_threshold=1000)
+2026-04-28 11:47:43 | INFO | AcqConfig: AcqConfig(kind='EI', xi=0.01, kappa=2.0, maximize=False)
+2026-04-28 11:47:43 | INFO | OptimConfig: OptimConfig(method='random', global_method='refine', optimizer='L-BFGS-B', n_raw_samples=2000, grid_n_per_dim=20, n_restarts=10, local_maxiter=200)
+2026-04-28 11:47:43 | INFO | SaveConfig: SaveConfig(out_path='./sinus_1D_large_scale_out\\2026-04-28_11-47-43', log_enabled=True, log_filename='log.log', export_enabled=False, export_filename='experiment.h5', export_every=1, plt_state_enabled=True, plt_conv_enabled=True, plt_hist_enabled=True, plt_MLE_conv_enbable=True, plt_all=True, plot_every=1, dpi=250)
+2026-04-28 11:47:43 | INFO | Random seed: 1234
+2026-04-28 11:47:43 | INFO | it  |    x_next     |      y_next     |      best_y     |    l_c    |  sigma_f  |  sigma_y
+2026-04-28 11:47:43 | INFO | -----------------------------------------------------------------------------------------------
+2026-04-28 11:47:44 | INFO | 000 |  -9.806352e+00 |  -5.054365e+01 |  -4.546257e+01 |    5.712e-02 |    9.977e-01 |    1.406e-03
+2026-04-28 11:47:45 | INFO | 001 |   9.935321e+00 |   1.108796e+01 |  -5.054365e+01 |    5.712e-02 |    9.977e-01 |    1.406e-03
+2026-04-28 11:47:45 | INFO | 002 |  -9.509223e+00 |  -4.981271e+01 |  -5.054365e+01 |    5.712e-02 |    9.977e-01 |    1.406e-03
+2026-04-28 11:47:46 | INFO | 003 |  -2.575709e+00 |  -5.942215e+01 |  -5.054365e+01 |    5.712e-02 |    9.977e-01 |    1.406e-03
+2026-04-28 11:47:46 | INFO | 004 |  -1.812483e+00 |  -7.015783e+01 |  -5.942215e+01 |    5.712e-02 |    9.977e-01 |    1.406e-03
+2026-04-28 11:47:47 | INFO | 005 |  -1.988699e+00 |  -7.079274e+01 |  -7.015783e+01 |    8.827e-02 |    9.920e-01 |    3.355e-04
+2026-04-28 11:47:48 | INFO | 006 |   5.827035e+00 |  -4.957133e+01 |  -7.079274e+01 |    8.827e-02 |    9.920e-01 |    3.355e-04
+2026-04-28 11:47:48 | INFO | 007 |  -1.964315e+00 |  -7.076406e+01 |  -7.079274e+01 |    8.827e-02 |    9.920e-01 |    3.355e-04
+2026-04-28 11:47:49 | INFO | 008 |  -1.955833e+00 |  -7.080405e+01 |  -7.079274e+01 |    8.827e-02 |    9.920e-01 |    3.355e-04
+2026-04-28 11:47:50 | INFO | 009 |  -1.954811e+00 |  -7.063584e+01 |  -7.080405e+01 |    8.827e-02 |    9.920e-01 |    3.355e-04
