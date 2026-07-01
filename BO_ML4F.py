@@ -57,9 +57,12 @@ class GPConfig:
     theta0_log: Optional[Array] = None
     theta_bounds_log: Optional[List[Tuple[float, float]]] = None
 
-    # Rank-1 Cholesky update: O(n^2) extension instead of O(n^3) full refit.
-    # Skipped automatically whenever HPO is triggered (hyperparams change = full refit needed).
-    use_rank1_update: bool = False
+    # Rank-1 Cholesky update: switch from O(n^3) full refit to O(n^2) block
+    # extension once the dataset reaches rank1_threshold points.  Set to 0 to
+    # disable entirely.  Skipped automatically whenever HPO is triggered.
+    # Example: rank1_threshold=500 with 300 initial points → kicks in after
+    #          200 BO iterations; with 500 initial points → kicks in from iter 1.
+    rank1_threshold: int = 0
 
     # Multi-restart HPO: number of random restarts added on top of the warm start.
     n_hpo_restarts: int = 3
@@ -1055,7 +1058,9 @@ def plt_state(
             os.makedirs(save_cfg.save_path)
         figname = os.path.join(save_cfg.save_path, f"it_{it:03d}.png")
         plt.savefig(figname, dpi=250)
-    plt.show()
+        plt.close(fig)
+    else:
+        plt.show()
 
 
 def setup_logger(log_path: str, filename: str = "run.log") -> logging.Logger:
@@ -1156,15 +1161,20 @@ def bayesian_optimization(
         #   (a) it == 0 or HPO triggered  →  full O(n^3) Cholesky refit.
         #       HPO changes the kernel hyperparameters, so the whole K matrix
         #       changes; a rank-1 update would be invalid.
-        #   (b) rank-1 mode enabled and no HPO  →  O(n^2) extension that
-        #       appends only the single point added at the end of iteration it-1.
+        #   (b) dataset size >= rank1_threshold and no HPO  →  O(n^2) extension
+        #       appending only the single point added at iteration it-1.
         #       gp.Xs / gp.ys still hold the OLD dataset (n points); X / y
         #       already have n+1 points, so X[-1] / y[-1] is the new point.
-        #   (c) rank-1 disabled and no HPO  →  full refit without HPO.
+        #   (c) rank-1 not yet triggered or disabled  →  full refit without HPO.
+        use_rank1 = (
+            gp_cfg.rank1_threshold > 0
+            and len(y) >= gp_cfg.rank1_threshold
+            and gp.L is not None
+        )
         if it == 0 or do_hpo:
             # Path (a): mandatory full refit
             gp = fit_gp(gp, X, y, gp_cfg, it)
-        elif gp_cfg.use_rank1_update and gp.L is not None:
+        elif use_rank1:
             # Path (b): cheap O(n^2) rank-1 Cholesky extension
             gp = update_gp_rank1(gp, X[-1:], float(y[-1]))
         else:
