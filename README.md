@@ -12,8 +12,9 @@ on Reinforcement Twinning applied to the Burger equation control case.
 | `BO_ML4F.py` | Main library. Contains all dataclasses, GP routines, acquisition functions, and the `bayesian_optimization` driver. |
 | `BO_func_YL.py` | Lower-level helper module (kernels, GP fit/predict, EI, plotting utilities). Required by `BO_ML4F.py`. |
 | `BO_ML4F_documentation.tex` | Full implementation notes (LaTeX): kernel functions, GP regression, output normalisation, HPO, rank-1 Cholesky update, acquisition functions, and configuration reference. |
-| `1D_Test_CASE.py` | 1D smoke-test for `BO_ML4F.py`. Minimises f(x) = sin(5x)(1 − tanh(x²)) + ε on [−2, 2]. Enables per-iteration GP + acquisition plots. |
-| `3D_Test_CASE.py` | 3D test for `BO_ML4F.py`. Minimises f(x) = sin(3x₀) + 0.5 cos(5x₁) + 0.2 x₂² + ε on [−2, 2]³. |
+| `1D_Test_CASE.py` | 1D smoke-test: minimises f(x) = sin(5x)(1 − tanh(x²)) + ε on [−2, 2]. Exports per-iteration `.npz` snapshots to `./out/states/`. |
+| `3D_Test_CASE.py` | 3D test: minimises f(x) = sin(3x₀) + 0.5 cos(5x₁) + 0.2 x₂² + ε on [−2, 2]³. Exports snapshots to `./out_3d/states/`. |
+| `make_animation_1D.py` | Post-processing script: loads `state_NNN.npz` snapshots and produces a GIF (or MP4) showing the GP posterior and acquisition function evolution. Run after `1D_Test_CASE.py`. |
 
 ### Key features of `BO_ML4F.py`
 
@@ -24,6 +25,7 @@ on Reinforcement Twinning applied to the Burger equation control case.
 - **Three acquisition functions**: Expected Improvement (EI), Probability of Improvement (PI), Lower Confidence Bound (LCB).
 - **Acquisition optimisation**: random scan, grid scan, or random-then-refine with local L-BFGS-B polishing.
 - **User-provided initial data**: pass `X_init` and `y_init` to seed the GP from existing evaluations.
+- **Per-iteration state export**: set `export_states=True` in `SaveConfig` to write compressed `.npz` snapshots each iteration (GP posterior, acquisition values, proposed point). Use `make_animation_1D.py` to build a GIF from them.
 
 ### General usage example
 
@@ -77,11 +79,13 @@ optim_cfg = bo.OptimConfig(
     n_restarts    = 10,         # L-BFGS-B starts from top candidates
 )
 
-# --- Plotting / logging
+# --- Output / logging
 save_cfg = bo.SaveConfig(
-    plt_state_enabled = True,    # per-iteration plots (1D problems only)
-    save_path         = "./out", # directory for plots and log file
-    log_enabled       = True,
+    save_path     = "./out",   # directory for all outputs
+    log_enabled   = True,
+    export_states = True,      # save .npz snapshot each iteration
+    n_plot        = 400,       # grid resolution for 1D GP export (ignored in nD)
+    # plt_state_enabled = True  # legacy inline plots (1D interactive sessions only)
 )
 
 # --- Run
@@ -100,6 +104,9 @@ res = bo.bayesian_optimization(
 
 print(f"Best x : {res.best_x}")
 print(f"Best y : {res.best_y:.6f}")
+
+# For 1D problems: build a GIF animation of the BO trajectory
+#   python make_animation_1D.py ./out/states ./out/animation.gif 3
 ```
 
 ---
@@ -125,11 +132,12 @@ numpy
 scipy
 scikit-learn   (rbf_kernel used internally)
 matplotlib
+pillow         (for GIF export via make_animation_1D.py)
 ```
 
 Install with:
 ```
-pip install numpy scipy scikit-learn matplotlib
+pip install numpy scipy scikit-learn matplotlib pillow
 ```
 
 ---

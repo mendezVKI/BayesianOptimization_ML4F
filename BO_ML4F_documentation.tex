@@ -717,9 +717,14 @@ using the \emph{existing} $(\bar{y}, s_y)$ before the update:
 In the main BO loop (\coderange{1144}{1173}) three fitting paths are selected:
 
 \begin{lstlisting}[firstnumber=1164, caption=Fitting path selection in \codefn{bayesian\_optimization}]
+        use_rank1 = (
+            gp_cfg.rank1_threshold > 0
+            and len(y) >= gp_cfg.rank1_threshold
+            and gp.L is not None
+        )
         if it == 0 or do_hpo:
             gp = fit_gp(gp, X, y, gp_cfg, it)          # (a) O(n^3), renormalise
-        elif gp_cfg.use_rank1_update and gp.L is not None:
+        elif use_rank1:
             gp = update_gp_rank1(gp, X[-1:], float(y[-1]))  # (b) O(n^2) rank-1
         else:
             gp = fit_gp(gp, X, y, gp_cfg, it)          # (c) full, HPO skipped
@@ -729,11 +734,13 @@ In the main BO loop (\coderange{1144}{1173}) three fitting paths are selected:
   \item \textbf{Path (a)} is mandatory at iteration~0 and whenever HPO runs.
         New hyperparameters invalidate the entire kernel matrix, and the
         normalisation statistics are recomputed from scratch.
-  \item \textbf{Path (b)} is triggered when \texttt{use\_rank1\_update=True}
-        and no HPO occurs.  At this point \texttt{X} and \texttt{y} already
-        contain the new point while \texttt{gp.Xs / gp.ys} still hold the
-        previous dataset, so \texttt{X[-1:]} and \texttt{y[-1]} identify the
-        single new observation.
+  \item \textbf{Path (b)} is triggered once the dataset has reached
+        \texttt{rank1\_threshold} points (\texttt{rank1\_threshold > 0} and
+        \texttt{len(y) >= rank1\_threshold}) and no HPO occurs.  At this
+        point \texttt{X} and \texttt{y} already contain the new point while
+        \texttt{gp.Xs / gp.ys} still hold the previous dataset, so
+        \texttt{X[-1:]} and \texttt{y[-1]} identify the single new
+        observation.
   \item \textbf{Path (c)} is the fallback full refit with HPO skipped.
 \end{itemize}
 
@@ -765,7 +772,7 @@ The complete algorithm is in \codefn{bayesian\_optimization}
   \If{$t = 0$ \textbf{or} HPO scheduled}
     \State Full refit incl.\ (re-)normalisation: $(\balpha, \bL) \leftarrow$ \codefn{fit\_gp}
            \hfill \textit{Path (a)}
-  \ElsIf{\texttt{use\_rank1\_update}}
+  \ElsIf{\texttt{rank1\_threshold} $> 0$ \textbf{and} $|\mathcal{D}| \geq$ \texttt{rank1\_threshold}}
     \State $(\balpha, \bL) \leftarrow$ \codefn{update\_gp\_rank1}
            \hfill \textit{Path (b)}
   \Else
@@ -819,8 +826,9 @@ Table~\ref{tab:config} summarises the most important parameters.
   & Run HPO every $k$ iterations \\
  & \texttt{n\_hpo\_restarts} & 3
   & Random restarts in HPO \\
- & \texttt{use\_rank1\_update} & \texttt{False}
-  & Enable $\mathcal{O}(n^2)$ update (\S\ref{sec:rank1}) \\
+ & \texttt{rank1\_threshold} & 0
+  & Dataset size ($\geq$) at which $\mathcal{O}(n^2)$ update engages;
+    $0$ disables it entirely (\S\ref{sec:rank1}) \\
 \midrule
 \texttt{AcqConfig} & \texttt{kind} & \texttt{"EI"}
   & Acquisition type (EI/PI/UCB) \\
@@ -857,7 +865,7 @@ gp_cfg = bo.GPConfig(
     optimize_hyperparams = True,
     hpo_every            = 5,           # full refit every 5 iterations
     n_hpo_restarts       = 3,           # warm + default + 3 random = 5 starts
-    use_rank1_update     = True,        # O(n^2) between HPO calls
+    rank1_threshold      = 500,         # O(n^2) update once dataset reaches 500 pts
 )
 \end{lstlisting}
 
@@ -866,10 +874,12 @@ gp_cfg = bo.GPConfig(
 \label{sec:examples}
 % ============================================================
 
-The folder contains five test scripts organised into three groups:
-two examples for \codefile{BO\_ML4F.py}, two legacy examples for
-\codefile{BO\_func\_YL.py}, and one reference script based on
-scikit-optimize.
+The folder contains two test scripts exercising \codefile{BO\_ML4F.py}
+directly: a 1D smoke-test and a 3D test. Earlier development also used a
+pair of legacy examples calling \codefile{BO\_func\_YL.py} directly and a
+scikit-optimize reference script; those were used only to validate the
+Mat\'{e}rn~5/2 kernel and output-normalisation features against a
+third-party implementation and are not part of this repository.
 
 % -----------------------------------
 \subsection{\texttt{1D\_Test\_CASE.py} --- 1D example with \codefile{BO\_ML4F.py}}
@@ -951,58 +961,20 @@ The best solution is accessed via \texttt{res.best\_x} and
 \texttt{res.best\_y} after the loop.
 
 % -----------------------------------
-\subsection{\texttt{1D\_Test\_CASE\_YL.py} and \texttt{3D\_Test\_CASE\_YL.py}
-  --- Legacy examples}
+\subsection{Development-time references (not included in this repository)}
 \label{sec:exyl}
 % -----------------------------------
 
-These two scripts use the lower-level \codefile{BO\_func\_YL.py} module and
-do not call \codefn{bayesian\_optimization}.  They are kept as reference
-implementations and pedagogical baselines.
-
-\textbf{1D\_Test\_CASE\_YL.py} implements the complete BO loop manually for
-the same 1D function (Eq.~\eqref{eq:f1d}).  It calls \codefn{log\_marginal\_likelihood},
-\codefn{gp\_fit}, \codefn{gp\_predict}, and \codefn{propose\_location} directly,
-making it easy to trace every step of the algorithm without abstraction layers.
-
-\textbf{3D\_Test\_CASE\_YL.py} is an \emph{incomplete} script that generates
-a 3D dataset with a Latin Hypercube sampler (\texttt{scipy.stats.qmc.LatinHypercube}),
-plots the input cloud coloured by the objective
-\[
-  g(\bx) = \sin(x_0) + \tfrac{1}{2}\cos(x_1)
-          + \tfrac{1}{4}x_2^2 + 0.3\sin(x_0 x_1),
-\]
-and fits a GP to the data --- but does not yet run a BO loop.  It serves as
-a template for future extensions.
-
-% -----------------------------------
-\subsection{\texttt{3\_Bayesian\_Optimization\_Scipy\_Optimize.py}
-  --- scikit-optimize reference}
-\label{sec:exskopt}
-% -----------------------------------
-
-This script, adapted from the scikit-optimize tutorial, applies
-\texttt{skopt.gp\_minimize} to the same 1D objective (Eq.~\eqref{eq:f1d}).
-It was used as the reference when benchmarking features absent from the
-original \codefile{BO\_func\_YL.py} implementation:
-
-\begin{lstlisting}[numbers=none, caption=\codefile{3\_Bayesian\_Optimization\_Scipy\_Optimize.py}]
-from skopt import gp_minimize
-res = gp_minimize(f,
-                  [(-2.0, 2.0)],
-                  acq_func="EI",
-                  n_calls=15,
-                  n_random_starts=5,
-                  noise=0.1**2,
-                  random_state=1234)
-\end{lstlisting}
-
-The script also produces an animated GIF showing the GP posterior and EI
-acquisition at each of the first ten iterations, using
-\texttt{skopt.plots.plot\_gaussian\_process}.  The two features identified
-in that comparison and subsequently ported into \codefile{BO\_ML4F.py} are
-the Mat\'{e}rn~5/2 kernel (Section~\ref{sec:matern}) and output normalisation
-(Section~\ref{sec:normalisation}).
+Two kinds of throwaway scripts informed the design of \codefile{BO\_ML4F.py}
+but were not kept in the repository: manual step-by-step ports of the BO
+loop built directly on \codefile{BO\_func\_YL.py} (used to trace every step
+of the algorithm without the \codefn{bayesian\_optimization} abstraction
+layer), and a scikit-optimize reference run (\texttt{skopt.gp\_minimize} on
+the 1D objective of Eq.~\eqref{eq:f1d}) used to benchmark the Mat\'{e}rn~5/2
+kernel (Section~\ref{sec:matern}) and output normalisation
+(Section~\ref{sec:normalisation}) against a third-party implementation
+before porting them into \codefile{BO\_ML4F.py}. Neither is required to run
+or understand the current library.
 
 % ============================================================
 \section{Corrections to \texttt{BO\_func\_YL.py}}

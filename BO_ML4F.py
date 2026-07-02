@@ -184,11 +184,14 @@ class AcqOptimizationResult:
 # Give information about possible plot and saving
 @dataclass
 class SaveConfig:
-    plt_state_enabled: bool = False              # master switch
-    save_path: Optional[str] = None    # directory to save plots
-    plot_every: int = 1                # plot every k iterations
+    save_path: Optional[str] = None    # directory for all outputs
     log_enabled: bool = True
     log_filename: str = "run.log"
+    # --- Per-iteration state export (recommended for post-processing / animation)
+    export_states: bool = False        # save .npz snapshot each iteration
+    n_plot: int = 400                  # grid resolution for 1D GP predictions in exports
+    # --- Inline plotting (interactive sessions only, 1D problems)
+    plt_state_enabled: bool = False    # legacy switch — use export_states instead
 
 # ----------------------------
 # Helper utilities (skeleton)
@@ -1089,6 +1092,70 @@ def setup_logger(log_path: str, filename: str = "run.log") -> logging.Logger:
     return logger
 
 # ----------------------------
+# Per-iteration state export
+# ----------------------------
+def _export_iteration_data(
+    gp: GPModel,
+    acq_res: AcqOptimizationResult,
+    X: Array,
+    y: Array,
+    x_next: Array,
+    y_next: float,
+    bounds: Bounds,
+    it: int,
+    save_path: str,
+    n_plot: int = 400,
+) -> None:
+    """
+    Save a compressed .npz snapshot of the current BO state.
+
+    Always saved:
+      it, X, y, x_next, y_next, Xcand, a, a_best, l_c, sigma_f, sigma_y,
+      y_mean, y_std
+
+    Additionally for 1D problems:
+      Xplot, mu, std  (dense GP posterior on a regular grid — useful for animation)
+
+    Files are written to  <save_path>/states/state_NNN.npz.
+    Use make_animation_1D.py to build a GIF from these snapshots.
+    """
+    states_dir = os.path.join(save_path, "states")
+    os.makedirs(states_dir, exist_ok=True)
+
+    data: Dict[str, Any] = dict(
+        it      = np.array([it]),
+        X       = X,
+        y       = y,
+        x_next  = np.asarray(x_next).reshape(-1),
+        y_next  = np.array([y_next]),
+        Xcand   = acq_res.Xcand,
+        a       = acq_res.a,
+        a_best  = np.array([acq_res.a_best]),
+        l_c     = np.array([gp.l_c]),
+        sigma_f = np.array([gp.sigma_f]),
+        sigma_y = np.array([gp.sigma_y]),
+        y_mean  = np.array([gp.y_mean]),
+        y_std   = np.array([gp.y_std]),
+    )
+
+    # 1D-only: export dense GP posterior for animation
+    if gp.Xs is not None and gp.Xs.shape[1] == 1:
+        x_lo, x_hi = bounds[0]
+        Xplot = np.linspace(x_lo, x_hi, n_plot).reshape(-1, 1)
+        mu_norm, var_norm = gp_predict(
+            Xplot, gp.Xs, gp.alpha, gp.L,
+            l_c=gp.l_c, sigma_f=gp.sigma_f,
+            return_cov=False, kernel=gp.kernel,
+        )
+        data['Xplot'] = Xplot.reshape(-1)
+        data['mu']    = (mu_norm  * gp.y_std + gp.y_mean).reshape(-1)
+        data['std']   = (np.sqrt(np.maximum(var_norm, 0.0)) * gp.y_std).reshape(-1)
+
+    fname = os.path.join(states_dir, f"state_{it:03d}.npz")
+    np.savez_compressed(fname, **data)
+
+
+# ----------------------------
 # Main BO function (skeleton)
 # ----------------------------
 def bayesian_optimization(
@@ -1197,9 +1264,19 @@ def bayesian_optimization(
         # Evaluate objective at proposed point
         y_next = float(np.asarray(f(x_next)).reshape(-1)[0])
 
-        # Plot the current state if required
-        if save_cfg.plt_state_enabled:
+        # Export per-iteration snapshot for post-processing / animation
+        if save_cfg.export_states and save_cfg.save_path:
+            _export_iteration_data(
+                gp=gp, acq_res=acq_res,
+                X=X, y=y,
+                x_next=x_next, y_next=y_next,
+                bounds=bounds, it=it,
+                save_path=save_cfg.save_path,
+                n_plot=save_cfg.n_plot,
+            )
 
+        # Inline plot (interactive / legacy — use export_states for scripts)
+        if save_cfg.plt_state_enabled:
             plt_state(
                 gp=gp,
                 acq_res=acq_res,
