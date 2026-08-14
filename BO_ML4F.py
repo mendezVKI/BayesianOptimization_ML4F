@@ -100,6 +100,21 @@ class OptimConfig:
     grid_n_per_dim: int = 20      # for grid (roughly)
     n_restarts: int = 10          # number of best global points used as starts
     local_maxiter: int = 200
+    n_candidates: int = 1         # diverse acquisition proposals per BO round
+    batch_distance_scale: float = 0.05  # relative to normalized search box
+
+
+@dataclass
+class GradientRefinementConfig:
+    """Optional local refinement of each acquisition proposal."""
+    enabled: bool = False
+    n_steps: int = 50
+    learning_rate: float = 1e-2
+    beta1: float = 0.9
+    beta2: float = 0.999
+    epsilon: float = 1e-8
+    distance_threshold: float = 1e-3  # normalized parameter-space distance
+    close_pair_policy: str = "final"  # "final" or "midpoint"
 
 
 # general settigns for the BO optimizer (optimization etc)
@@ -157,6 +172,11 @@ class BOState:
     acq_res: AcqOptimizationResult
     x_next: Optional[Array] = None
     y_next: Optional[float] = None
+    x_proposed: Optional[Array] = None
+    y_proposed: Optional[Array] = None
+    x_refined: Optional[Array] = None
+    y_refined: Optional[Array] = None
+    refinement_displacement: Optional[Array] = None
 
 
 # collects all the info concerning the result of the BO
@@ -955,6 +975,82 @@ def optimize_acquisition(
         a=a,
     )
 
+
+def optimize_acquisition_batch(
+    acq: Callable[[Array], Array],
+    bounds: Bounds,
+    optim_cfg: OptimConfig,
+    rng: np.random.Generator,
+) -> List[AcqOptimizationResult]:
+    """Greedily select a diverse batch by locally penalizing previous picks."""
+    n_candidates = int(optim_cfg.n_candidates)
+    if n_candidates < 1:
+        raise ValueError("optim_cfg.n_candidates must be at least one.")
+    if optim_cfg.batch_distance_scale <= 0.0:
+        raise ValueError("optim_cfg.batch_distance_scale must be positive.")
+
+    lo = np.asarray([bound[0] for bound in bounds], dtype=float)
+    width = np.asarray([bound[1] - bound[0] for bound in bounds], dtype=float)
+    selected: List[Array] = []
+    results: List[AcqOptimizationResult] = []
+    for _ in range(n_candidates):
+        def penalized(Xcand: Array) -> Array:
+            values = np.asarray(acq(Xcand), dtype=float).reshape(-1)
+            if not selected:
+                return values
+            normalized = (np.atleast_2d(Xcand) - lo) / width
+            selected_normalized = (np.asarray(selected) - lo) / width
+            distance = np.min(
+                np.linalg.norm(
+                    normalized[:, None, :] - selected_normalized[None, :, :],
+                    axis=2,
+                ),
+                axis=1,
+            )
+            penalty = 1.0 - np.exp(
+                -(distance / optim_cfg.batch_distance_scale) ** 2
+            )
+            return values * penalty
+
+        result = optimize_acquisition(penalized, bounds, optim_cfg, rng)
+        selected.append(np.asarray(result.x_next, dtype=float))
+        results.append(result)
+    return results
+
+
+def adam_refine_candidate(
+    x0: Array,
+    gradient: Callable[[Array], Array],
+    bounds: Bounds,
+    config: GradientRefinementConfig,
+) -> Array:
+    """Projected ADAM in normalized parameter space."""
+    lo = np.asarray([bound[0] for bound in bounds], dtype=float)
+    width = np.asarray([bound[1] - bound[0] for bound in bounds], dtype=float)
+    z = np.clip((np.asarray(x0, dtype=float) - lo) / width, 0.0, 1.0)
+    first = np.zeros_like(z)
+    second = np.zeros_like(z)
+    for step in range(1, int(config.n_steps) + 1):
+        raw = gradient(lo + width * z)
+        if isinstance(raw, tuple):
+            raw = raw[-1]
+        grad_z = np.asarray(raw, dtype=float).reshape(z.shape) * width
+        if not np.all(np.isfinite(grad_z)):
+            break
+        first = config.beta1 * first + (1.0 - config.beta1) * grad_z
+        second = config.beta2 * second + (1.0 - config.beta2) * grad_z**2
+        first_hat = first / (1.0 - config.beta1**step)
+        second_hat = second / (1.0 - config.beta2**step)
+        z = np.clip(
+            z
+            - config.learning_rate
+            * first_hat
+            / (np.sqrt(second_hat) + config.epsilon),
+            0.0,
+            1.0,
+        )
+    return lo + width * z
+
 def export_state(state: BOState, path_or_handler: Any) -> None:
     """Optional exporting."""
     return
@@ -1171,13 +1267,37 @@ def bayesian_optimization(
     X_init: Optional[Array] = None,  # initial points (optional)
     y_init: Optional[Array] = None,  # initial values (optional)
     top_up_to_n_init: bool = True,   # if X_init has too few points, add more random ones
-    states: List[BOState] = [],
+    states: Optional[List[BOState]] = None,
+    gradient: Optional[Callable[[Array], Array]] = None,
+    refinement_cfg: Optional[GradientRefinementConfig] = None,
 ) -> BOResult:
     """
     Bayesian Optimization driver (minimization by default).
+
+    ``gradient`` and ``refinement_cfg`` are optional. The legacy behavior is
+    unchanged unless ``refinement_cfg.enabled`` is true. Batch acquisition is
+    controlled independently by ``optim_cfg.n_candidates``.
     """
     rng = _rng(bo_cfg.random_state)
     callbacks = callbacks or []
+    states = [] if states is None else states
+    refinement_cfg = refinement_cfg or GradientRefinementConfig()
+    if refinement_cfg.enabled and gradient is None:
+        raise ValueError(
+            "gradient must be provided when gradient refinement is enabled."
+        )
+    if refinement_cfg.close_pair_policy not in {"final", "midpoint"}:
+        raise ValueError("close_pair_policy must be 'final' or 'midpoint'.")
+    if refinement_cfg.distance_threshold < 0.0:
+        raise ValueError("distance_threshold must be non-negative.")
+    if refinement_cfg.n_steps < 0:
+        raise ValueError("n_steps must be non-negative.")
+    if refinement_cfg.learning_rate <= 0.0:
+        raise ValueError("learning_rate must be positive.")
+    if not (0.0 <= refinement_cfg.beta1 < 1.0):
+        raise ValueError("beta1 must lie in [0, 1).")
+    if not (0.0 <= refinement_cfg.beta2 < 1.0):
+        raise ValueError("beta2 must lie in [0, 1).")
 
     logger = None
     if save_cfg.log_enabled and save_cfg.save_path:
@@ -1192,6 +1312,7 @@ def bayesian_optimization(
         logger.info(f"GPConfig: {gp_cfg}")
         logger.info(f"AcqConfig: {acq_cfg}")
         logger.info(f"OptimConfig: {optim_cfg}")
+        logger.info(f"GradientRefinementConfig: {refinement_cfg}")
         logger.info(f"Random seed: {bo_cfg.random_state}")
 
 
@@ -1233,17 +1354,26 @@ def bayesian_optimization(
         #       gp.Xs / gp.ys still hold the OLD dataset (n points); X / y
         #       already have n+1 points, so X[-1] / y[-1] is the new point.
         #   (c) rank-1 not yet triggered or disabled  →  full refit without HPO.
+        n_pending = 0 if gp.Xs is None else len(X) - len(gp.Xs)
         use_rank1 = (
             gp_cfg.rank1_threshold > 0
             and len(y) >= gp_cfg.rank1_threshold
             and gp.L is not None
+            and gp.Xs is not None
+            and n_pending >= 1
         )
         if it == 0 or do_hpo:
             # Path (a): mandatory full refit
             gp = fit_gp(gp, X, y, gp_cfg, it)
         elif use_rank1:
-            # Path (b): cheap O(n^2) rank-1 Cholesky extension
-            gp = update_gp_rank1(gp, X[-1:], float(y[-1]))
+            # Path (b): cheap O(n^2) rank-1 Cholesky extensions. Hybrid
+            # refinement can append both the proposal and its ADAM endpoint.
+            # Extend sequentially so that this remains valid for either one or
+            # several observations added by the preceding BO round.
+            for pending_index in range(len(X) - n_pending, len(X)):
+                gp = update_gp_rank1(
+                    gp, X[pending_index : pending_index + 1], float(y[pending_index])
+                )
         else:
             # Path (c): full refit, HPO skipped by fit_gp based on iteration parity
             gp = fit_gp(gp, X, y, gp_cfg, it)
@@ -1256,13 +1386,65 @@ def bayesian_optimization(
         # Build acquisition
         acq = make_acquisition(acq_cfg, gp, y_best)
 
-        # Optimize acquisition -> propose next x
-        acq_res = optimize_acquisition(acq, bounds, optim_cfg, rng) # output a container
-        x_next = acq_res.x_next
+        # Propose a diverse acquisition batch. n_candidates=1 reproduces the
+        # historical single-EI-point behavior.
+        acq_results = optimize_acquisition_batch(acq, bounds, optim_cfg, rng)
+        acq_res = acq_results[0]
+        x_proposed = np.asarray(
+            [result.x_next for result in acq_results], dtype=float
+        )
+        y_proposed = np.asarray(
+            [float(np.asarray(f(x)).reshape(-1)[0]) for x in x_proposed],
+            dtype=float,
+        )
 
+        x_refined = np.full_like(x_proposed, np.nan)
+        y_refined = np.full(len(x_proposed), np.nan, dtype=float)
+        displacements = np.zeros(len(x_proposed), dtype=float)
+        round_X: List[Array] = []
+        round_y: List[float] = []
+        lo = np.asarray([bound[0] for bound in bounds], dtype=float)
+        width = np.asarray([bound[1] - bound[0] for bound in bounds], dtype=float)
 
-        # Evaluate objective at proposed point
-        y_next = float(np.asarray(f(x_next)).reshape(-1)[0])
+        for q, (x0, y0) in enumerate(zip(x_proposed, y_proposed)):
+            if not refinement_cfg.enabled:
+                round_X.append(x0)
+                round_y.append(float(y0))
+                continue
+
+            local_gradient = gradient
+            if acq_cfg.maximize:
+                def local_gradient(x, grad=gradient):
+                    value = grad(x)
+                    raw_gradient = value[-1] if isinstance(value, tuple) else value
+                    return -np.asarray(raw_gradient)
+            xL = adam_refine_candidate(
+                x0, local_gradient, bounds, refinement_cfg
+            )
+            yL = float(np.asarray(f(xL)).reshape(-1)[0])
+            displacement = float(
+                np.linalg.norm((xL - x0) / width)
+            )
+            x_refined[q] = xL
+            y_refined[q] = yL
+            displacements[q] = displacement
+
+            if displacement > refinement_cfg.distance_threshold:
+                round_X.extend([x0, xL])
+                round_y.extend([float(y0), yL])
+            elif refinement_cfg.close_pair_policy == "midpoint":
+                midpoint = 0.5 * (x0 + xL)
+                midpoint_value = float(np.asarray(f(midpoint)).reshape(-1)[0])
+                round_X.append(midpoint)
+                round_y.append(midpoint_value)
+            else:
+                round_X.append(xL)
+                round_y.append(yL)
+
+        round_X_array = np.asarray(round_X, dtype=float)
+        round_y_array = np.asarray(round_y, dtype=float)
+        x_next = x_proposed[0]
+        y_next = float(y_proposed[0])
 
         # Export per-iteration snapshot for post-processing / animation
         if save_cfg.export_states and save_cfg.save_path:
@@ -1287,9 +1469,9 @@ def bayesian_optimization(
                 acq_cfg=acq_cfg
             )
 
-        # Append data
-        X = np.vstack([X, x_next.reshape(1, -1)])
-        y = np.concatenate([y, np.array([y_next], dtype=float)])
+        # Append all non-redundant proposed/refined observations.
+        X = np.vstack([X, round_X_array])
+        y = np.concatenate([y, round_y_array])
 
         # Store all what was evaluated at this iteration in the state
         state = BOState(
@@ -1301,6 +1483,11 @@ def bayesian_optimization(
             acq_res=acq_res,
             x_next=x_next,
             y_next=y_next,
+            x_proposed=x_proposed.copy(),
+            y_proposed=y_proposed.copy(),
+            x_refined=x_refined.copy(),
+            y_refined=y_refined.copy(),
+            refinement_displacement=displacements.copy(),
         )
         # Add the current state in the save list
         states.append(state)
@@ -1311,6 +1498,12 @@ def bayesian_optimization(
                 it=it,
                 x_next=x_next.copy(),
                 y_next=y_next,
+                x_proposed=x_proposed.copy(),
+                y_proposed=y_proposed.copy(),
+                x_refined=x_refined.copy(),
+                y_refined=y_refined.copy(),
+                refinement_displacement=displacements.copy(),
+                n_added=len(round_y_array),
                 best_x=x_best.copy(),
                 best_y=y_best,
                 n=len(y),
@@ -1334,6 +1527,8 @@ def bayesian_optimization(
                 f"it={it:03d} | "
                 f"x_next={x_next} | "
                 f"y_next={y_next:.6e} | "
+                f"n_proposed={len(x_proposed)} | "
+                f"n_added={len(round_y_array)} | "
                 f"best_y={y_best:.6e} | "
                 f"l_c={gp.l_c:.3e} | "
                 f"sigma_f={gp.sigma_f:.3e} | "

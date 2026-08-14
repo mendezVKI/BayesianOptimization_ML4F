@@ -24,6 +24,8 @@ on Reinforcement Twinning applied to the Burger equation control case.
 - **Multi-restart HPO**: warm start + user init + random restarts in log-space via L-BFGS-B (`optimize_hyperparams=True`, `n_hpo_restarts=3`). Frequency controlled by `hpo_every`.
 - **Three acquisition functions**: Expected Improvement (EI), Probability of Improvement (PI), Lower Confidence Bound (LCB).
 - **Acquisition optimisation**: random scan, grid scan, or random-then-refine with local L-BFGS-B polishing.
+- **Batch acquisition**: request several diverse EI/PI/UCB proposals per BO round with `OptimConfig(n_candidates=...)`.
+- **Optional gradient refinement**: refine every acquisition proposal with projected ADAM by passing a gradient callback and `GradientRefinementConfig(enabled=True)`. This mode is disabled by default.
 - **User-provided initial data**: pass `X_init` and `y_init` to seed the GP from existing evaluations.
 - **Per-iteration state export**: set `export_states=True` in `SaveConfig` to write compressed `.npz` snapshots each iteration (GP posterior, acquisition values, proposed point). Use `make_animation_1D.py` to build a GIF from them.
 
@@ -77,6 +79,7 @@ optim_cfg = bo.OptimConfig(
     method        = "refined",  # "random", "grid", or "refined"
     n_raw_samples = 2000,       # global random candidates
     n_restarts    = 10,         # L-BFGS-B starts from top candidates
+    n_candidates  = 1,          # proposals per BO round; 1 preserves legacy behavior
 )
 
 # --- Output / logging
@@ -108,6 +111,55 @@ print(f"Best y : {res.best_y:.6f}")
 # For 1D problems: build a GIF animation of the BO trajectory
 #   python make_animation_1D.py ./out/states ./out/animation.gif 3
 ```
+
+### Optional batch EI with ADAM refinement
+
+The objective remains the source of all archived values. The gradient callback
+returns the gradient of that same objective in the original bounded
+coordinates:
+
+```python
+def objective_gradient(x):
+    return np.array([2.0 * (x[0] - 0.3), 4.0 * (x[1] + 0.4)])
+
+res = bo.bayesian_optimization(
+    f=func,
+    gradient=objective_gradient,
+    bounds=bounds,
+    bo_cfg=bo_cfg,
+    gp_cfg=gp_cfg,
+    acq_cfg=acq_cfg,
+    optim_cfg=bo.OptimConfig(
+        method="refined",
+        n_candidates=5,
+        batch_distance_scale=0.08,
+    ),
+    refinement_cfg=bo.GradientRefinementConfig(
+        enabled=True,
+        n_steps=30,
+        learning_rate=0.02,
+        beta1=0.9,
+        beta2=0.999,
+        epsilon=1e-8,
+        distance_threshold=1e-3,
+        close_pair_policy="final",  # alternatively "midpoint"
+    ),
+    save_cfg=save_cfg,
+)
+```
+
+Each BO round first selects a diverse acquisition batch. Every proposal is
+evaluated and then refined by projected ADAM in normalized parameter space.
+When the normalized displacement exceeds `distance_threshold`, both the
+proposal and refined endpoint enter the GP dataset. Otherwise only the refined
+point is retained by default. With `close_pair_policy="midpoint"`, the midpoint
+is explicitly evaluated and retained instead; endpoint objective values are
+never averaged.
+
+`BOState` and each history entry expose `x_proposed`, `y_proposed`,
+`x_refined`, `y_refined`, `refinement_displacement`, and `n_added`. The legacy
+`x_next` and `y_next` fields remain the first acquisition proposal and its
+objective value.
 
 ---
 
