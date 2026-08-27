@@ -6,5 +6,13 @@ dist/
 .pytest_cache/
 *.h5
 
-# example run outputs
+# example run outputs (all examples write to examples/_output/ via
+# examples._common.output_dir, whatever the working directory)
+examples/_output/
+
+# stale locations, from before outputs were centralized
 examples/*_out/
+examples/*/*_out/
+examples/*/out_*/
+src/*/*_out/
+src/*/out_*/

@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "bo_ml4f"
+name = "pyBO"
 version = "0.3.0"
 description = "A Bayesian Optimization framework for the Machine Learning for Fluid Systems group (ML4F)"
 readme = "README.md"
@@ -34,5 +34,16 @@ Homepage = "https://www.mendezma.com/"
 Repository = "https://github.com/mendezVKI/BayesianOptimization_ML4F"
 
 [tool.setuptools]
-package-dir = { "bo_ml4f" = "src/sbo", "mfbo" = "src/mfbo" }
-packages = ["bo_ml4f", "mfbo"]
+package-dir = { "sbo" = "src/sbo", "mfbo" = "src/mfbo", "mobo" = "src/mobo" }
+packages = ["sbo", "mfbo", "mobo"]
+
+[tool.pytest.ini_options]
+# Make `pytest` work from a bare checkout, with no install step and no
+# PYTHONPATH, by putting the src/ layout on the path itself. This also means
+# the tests always exercise the working tree rather than whatever version
+# happens to be installed in the environment.
+pythonpath = ["src"]
+# Collect only tests/: without this, pytest walks the whole tree, including
+# examples/, whose sbo/, mfbo/ and mobo/ folders share their names with the
+# packages under src/.
+testpaths = ["tests"]

@@ -7,29 +7,32 @@ Created on Wed Jan 28 13:28:02 2026
 
 #%% Initialization
 
-# Import main packages
+import os
+import sys
+import time
+from pathlib import Path
+
 import numpy as np
 import matplotlib.pyplot as plt
-import os
-import time
 
-# Import the home-made BO lib
-import bo_ml4f as bo
+# Make the `examples` package importable, so this file runs both as
+#     python -m examples.sbo.main_2D_rosenbrock
+# and directly (Spyder / VS Code "Run file"), from any working directory.
+# ONLY the repository root is added -- never examples/ itself, whose sbo/,
+# mfbo/ and mobo/ folders would shadow the libraries of the same name.
+# Importing `examples` is what puts src/ on the path, so it has to come
+# before the library import below. See examples/README.md.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-# Import a benchmark funciton 
-from benchmarks import branin_2d
+from examples import _common  # noqa: E402
+from examples.benchmarks import rosenbrock_2d  # noqa: E402
+import sbo as bo  # noqa: E402
 
-#Customization of the plot 
-plt.rc('text', usetex=True)      
-plt.rc('font', family='serif')
-plt.rc('xtick',labelsize=12)
-plt.rc('ytick',labelsize=12)
-plt.rc('axes',labelsize=12)
+_common.use_paper_style()
 
-# Define and create (if needed) the saving path
-OUT_PATH = "./branin_2D_out"
-if not os.path.exists(OUT_PATH):
-    os.makedirs(OUT_PATH)
+# Every example writes here, whatever the working directory (gitignored).
+OUT_PATH = _common.output_dir("sbo_rosenbrock_2D")
+
 
 # Define a given random seed for reproducability
 func_rng = 47
@@ -51,7 +54,7 @@ X1, X2 = np.meshgrid(x1, x2)
 # Build (n², 2) input
 X_real = np.stack([X1.ravel(), X2.ravel()], axis=1)
 # Evaluate function
-y_true = branin_2d(X_real, noise_level=0)
+y_true = rosenbrock_2d(X_real, noise_level=0)
 # Reshape for visualization
 Z = y_true.reshape(n_real, n_real)
 
@@ -80,11 +83,11 @@ LL = 2.0 # size of the domain
 bounds = [(-LL, LL), (-LL, LL)] # Define the bounds of the function
 
 n_init = 50
-n_iter = 10
+n_iter = 20
 xi = 0.01
 
-f = lambda x: branin_2d(x, noise_level=noise_level, rng=rng)
-f_true = lambda x: branin_2d(x, noise_level=0, rng=rng)
+f = lambda x: rosenbrock_2d(x, noise_level=noise_level, rng=rng)
+f_true = lambda x: rosenbrock_2d(x, noise_level=0, rng=rng)
 
 # -------- Run 
 start_time = time.time()

@@ -191,13 +191,14 @@ def plt_state_1D(
 
     axs[1].set_ylabel("acq(x)")
     axs[1].set_xlabel("x")
-
+    print("feff")
     if save_cfg.out_path:
         fig_path = os.path.join(save_cfg.out_path, "GIF")
         if not os.path.exists(fig_path):
             os.makedirs(fig_path)
+        plt.tight_layout()
         figname = os.path.join(fig_path, f"it_{it:03d}.png")
-        plt.savefig(figname, dpi=250, bbox_inches='tight')
+        plt.savefig(figname, dpi=250, bbox_inches="tight")
     plt.show()
     plt.close()
 

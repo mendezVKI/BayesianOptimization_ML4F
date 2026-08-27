@@ -12,6 +12,15 @@ where:
 Designed for development, debugging, and performance evaluation
 of optimization algorithms.
 
+Import this as a module of the examples package:
+
+    from examples.benchmarks import branin_2d
+
+and never as a bare top-level ``import benchmarks``, which would require
+putting ``examples/`` on sys.path -- the one thing that makes ``import sbo``
+/ ``mfbo`` / ``mobo`` resolve to the example folders of the same name. See
+examples/README.md.
+
 Author: Yannick Lecomte
 """
 
@@ -271,3 +280,54 @@ def rastrigin_nd(x: np.ndarray) -> float:
     A = 10
     d = len(x)
     return A * d + np.sum(x**2 - A * np.cos(2 * np.pi * x))
+
+
+#%% Multi-objective functions
+#
+# Interface: like the single-objective helpers above, these accept (d,) or
+# (n,d) and return either an (M,) objective vector for a single point or an
+# (n,M) array for a batch. Every objective is stated for MINIMIZATION, which
+# is what mobo assumes by default.
+
+def schaffer_n1(x, noise_level=0.0, rng=None):
+    """
+    Schaffer problem N.1: the standard 1D bi-objective benchmark.
+
+        f1(x) = x^2
+        f2(x) = (x - 2)^2                     x in [-4, 4]
+
+    Both minimized. The two objectives pull in opposite directions, so the
+    Pareto set is the whole interval x in [0, 2] and the Pareto front is the
+    convex curve it traces in objective space.
+    """
+    if rng is None:
+        rng = np.random.default_rng()
+    x0 = _prepare_input(x, 1)[:, 0]
+    out = np.column_stack([x0 ** 2, (x0 - 2.0) ** 2])
+    out = out + rng.normal(size=out.shape) * noise_level
+    return out if out.shape[0] > 1 else out[0]
+
+
+def binh_korn(x, noise_level=0.0, rng=None):
+    """
+    Binh & Korn problem (unconstrained form): the standard 2D bi-objective
+    benchmark.
+
+        f1(x) = 4*x1^2 + 4*x2^2
+        f2(x) = (x1 - 5)^2 + (x2 - 5)^2       x1 in [0,5], x2 in [0,3]
+
+    Both minimized. f1 pulls towards the origin and f2 towards (5,5), so the
+    Pareto set is the segment between them and the objectives are strongly
+    anti-correlated -- which is exactly the regime the off-diagonal entry of
+    mobo's coregionalization matrix B is there to capture.
+    """
+    if rng is None:
+        rng = np.random.default_rng()
+    x = _prepare_input(x, 2)
+    x0, x1 = x[:, 0], x[:, 1]
+    out = np.column_stack([
+        4.0 * x0 ** 2 + 4.0 * x1 ** 2,
+        (x0 - 5.0) ** 2 + (x1 - 5.0) ** 2,
+    ])
+    out = out + rng.normal(size=out.shape) * noise_level
+    return out if out.shape[0] > 1 else out[0]

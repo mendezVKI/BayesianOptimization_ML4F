@@ -59,24 +59,39 @@ functions, plotting, two-tier persistence, hyperparameter optimization).
   covariance/Cholesky factors. Reload with `bo.load_run(out_path)` and call
   `.posterior(it).predict(Xgrid)` to reconstruct predictions bit-for-bit
   without re-running the objective. See
-  [`examples/main_persistence_demo.py`](examples/main_persistence_demo.py).
+  [`examples/sbo/main_persistence_demo.py`](examples/sbo/main_persistence_demo.py).
 
 ## Project layout
 
+Three sibling packages, one per flavour of Bayesian optimization. They share
+a deliberately identical module structure but no code: each is independent,
+with no common base module and no imports between them.
+
 ```
-src/bo_ml4f/    the installable package (source lives in src/sbo, installed as bo_ml4f)
-    core.py         configs, GP model, acquisition, gradient refinement, BO driver
-    saving.py       experiment folders, run logging
-    persistence.py  two-tier (trace / snapshot) run persistence and replay
-    plotting.py     all matplotlib-based visualization (imported lazily)
-examples/       runnable tutorials against benchmark functions
+src/
+    sbo/        single-fidelity, single-objective BO
+    mfbo/       multi-fidelity BO (AR1 / Kennedy & O'Hagan)
+    mobo/       multi-objective BO (ICM GP + Monte-Carlo EHVI)
+        core.py         configs, GP model, acquisition, BO driver
+        saving.py       experiment folders, run logging
+        persistence.py  two-tier (trace / snapshot) run persistence and replay
+        plotting.py     all matplotlib-based visualization (imported lazily)
+legacy/         the exploratory scripts the packages were ported from
+examples/       runnable tutorials -- see examples/README.md
 tests/          pytest test suite
 paper/          JOSS paper (paper.md, paper.bib)
 ```
 
-`core.py` has no dependency on matplotlib/logging beyond the
-`saving`/`plotting`/`persistence` modules it composes; `plotting.py` and
+In every package, `core.py` has no dependency on matplotlib/logging beyond
+the `saving`/`plotting`/`persistence` modules it composes; `plotting.py` and
 `persistence.py` are only imported the first time a run actually needs them.
+
+The example folders are named after the packages they demonstrate
+(`examples/mobo/` alongside `src/mobo/`), so the examples reach shared code
+as `examples.benchmarks` and only ever add the repository **root** to
+`sys.path` — never `examples/` itself, which would shadow the libraries.
+[`examples/README.md`](examples/README.md) explains the rule and how to run
+the examples.
 
 ## Running the tests
 

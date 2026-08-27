@@ -15,20 +15,34 @@ Tier 2 is enough to reconstruct predictions without re-running the objective.
 @author: Yannick Lecomte
 """
 
+#%% Initialization
+
 import os
-import shutil
+import sys
+from pathlib import Path
 
 import numpy as np
 import matplotlib.pyplot as plt
 
-import bo_ml4f as bo
-from bo_ml4f import persistence
-from benchmarks import quadratic_1d
+# Make the `examples` package importable, so this file runs both as
+#     python -m examples.sbo.main_persistence_demo
+# and directly (Spyder / VS Code "Run file"), from any working directory.
+# ONLY the repository root is added -- never examples/ itself, whose sbo/,
+# mfbo/ and mobo/ folders would shadow the libraries of the same name.
+# Importing `examples` is what puts src/ on the path, so it has to come
+# before the library import below. See examples/README.md.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-OUT_PATH = "./persistence_demo_out"
-if os.path.exists(OUT_PATH):
-    shutil.rmtree(OUT_PATH)
-os.makedirs(OUT_PATH)
+from examples import _common  # noqa: E402
+from examples.benchmarks import quadratic_1d  # noqa: E402
+import sbo as bo  # noqa: E402
+from sbo import persistence
+
+_common.use_paper_style()
+
+# Every example writes here, whatever the working directory (gitignored).
+OUT_PATH = _common.output_dir("sbo_persistence_demo", clean=True)
+
 
 bounds = [(-2.0, 2.0)]
 n_init, n_iter = 4, 12

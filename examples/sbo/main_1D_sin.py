@@ -7,29 +7,32 @@ Created on Wed Jan 28 13:28:02 2026
 
 #%% Initialization
 
-# Import main packages
+import os
+import sys
+import time
+from pathlib import Path
+
 import numpy as np
 import matplotlib.pyplot as plt
-import os
-import time
 
-# Import the home-made BO lib
-import bo_ml4f as bo
+# Make the `examples` package importable, so this file runs both as
+#     python -m examples.sbo.main_1D_sin
+# and directly (Spyder / VS Code "Run file"), from any working directory.
+# ONLY the repository root is added -- never examples/ itself, whose sbo/,
+# mfbo/ and mobo/ folders would shadow the libraries of the same name.
+# Importing `examples` is what puts src/ on the path, so it has to come
+# before the library import below. See examples/README.md.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-# Import a benchmark funciton 
-from benchmarks import sinusoidal_1d
+from examples import _common  # noqa: E402
+from examples.benchmarks import sinusoidal_1d  # noqa: E402
+import sbo as bo  # noqa: E402
 
-#Customization of the plot 
-plt.rc('text', usetex=True)      
-plt.rc('font', family='serif')
-plt.rc('xtick',labelsize=12)
-plt.rc('ytick',labelsize=12)
-plt.rc('axes',labelsize=12)
+_common.use_paper_style()
 
-# Define and create (if needed) the saving path
-OUT_PATH = "./sinus_1D_out"
-if not os.path.exists(OUT_PATH):
-    os.makedirs(OUT_PATH)
+# Every example writes here, whatever the working directory (gitignored).
+OUT_PATH = _common.output_dir("sbo_sinus_1D")
+
 
 # Define a given random seed for reproducability
 func_rng = 47
@@ -62,7 +65,7 @@ plt.fill_between(
     y_true + 1.96 * noise_level,
     alpha=0.2,
     color="darkred",
-    label="95\% noise band", 
+    label=r"95\% noise band", 
     zorder=2
 )
 plt.xlabel("x"); plt.ylabel("y")

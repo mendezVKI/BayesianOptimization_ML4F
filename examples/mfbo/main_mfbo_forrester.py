@@ -17,23 +17,31 @@ f_high(x*) ~= -6.0207.
 #%% Initialization
 
 import os
+import sys
 import time
+from pathlib import Path
 
 import numpy as np
 import matplotlib.pyplot as plt
 
-import mfbo
-from benchmarks import forrester_high, forrester_low
+# Make the `examples` package importable, so this file runs both as
+#     python -m examples.mfbo.main_mfbo_forrester
+# and directly (Spyder / VS Code "Run file"), from any working directory.
+# ONLY the repository root is added -- never examples/ itself, whose sbo/,
+# mfbo/ and mobo/ folders would shadow the libraries of the same name.
+# Importing `examples` is what puts src/ on the path, so it has to come
+# before the library import below. See examples/README.md.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-plt.rc('text', usetex=True)
-plt.rc('font', family='serif')
-plt.rc('xtick', labelsize=12)
-plt.rc('ytick', labelsize=12)
-plt.rc('axes', labelsize=12)
+from examples import _common  # noqa: E402
+from examples.benchmarks import forrester_high, forrester_low  # noqa: E402
+import mfbo  # noqa: E402
 
-OUT_PATH = "./mfbo_forrester_out"
-if not os.path.exists(OUT_PATH):
-    os.makedirs(OUT_PATH)
+_common.use_paper_style()
+
+# Every example writes here, whatever the working directory (gitignored).
+OUT_PATH = _common.output_dir("mfbo_forrester")
+
 
 func_rng = 47
 rng = np.random.default_rng(func_rng)
@@ -87,7 +95,7 @@ res = mfbo.multi_fidelity_bayesian_optimization(
         l_delta=0.2, sigma_delta=3.0,
         rho=1.0, sigma_L=0.05, sigma_H=0.02,
         optimize_hyperparams=True,
-        hpo_every=5,
+        hpo_every=1,
     ),
     acq_cfg=mfbo.AcqConfig(xi=0.01),
     optim_cfg=mfbo.OptimConfig(
