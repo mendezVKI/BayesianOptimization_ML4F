@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bo_ml4f"
+version = "0.3.0"
+description = "A Bayesian Optimization framework for the Machine Learning for Fluid Systems group (ML4F)"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "Yannick Lecomte" },
+    { name = "Miguel A. Mendez" },
+]
+requires-python = ">=3.9"
+dependencies = [
+    "numpy",
+    "scipy",
+    "matplotlib",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[project.urls]
+Homepage = "https://www.mendezma.com/"
+Repository = "https://github.com/mendezVKI/BayesianOptimization_ML4F"
+
+[tool.setuptools]
+package-dir = { "bo_ml4f" = "src/sbo", "mfbo" = "src/mfbo" }
+packages = ["bo_ml4f", "mfbo"]
