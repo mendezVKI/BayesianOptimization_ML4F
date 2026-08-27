@@ -1,0 +1,14 @@
+# The working tree is edited from Windows/OneDrive while the history was
+# committed with mixed endings.  Normalising to LF in the repository keeps
+# `git status` honest; checkouts are unaffected on Linux/macOS and Git
+# converts on the fly for Windows checkouts if core.autocrlf=true.
+#
+# NOTE: this attribute alone does not rewrite what is already committed.
+# To renormalise once (single, reviewable commit):
+#     git add --renormalize .
+#     git commit -m "normalise line endings"
+* text=auto eol=lf
+*.png binary
+*.pdf binary
+*.gz  binary
+*.gif binary

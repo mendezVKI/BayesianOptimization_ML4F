@@ -43,7 +43,13 @@ Bounds = List[Tuple[float, float]]  # [(l1,u1), ..., (ld,ud)]
 @dataclass
 class GPConfig:
     # if optimize_hyperparams=False, these values are used and kept fixed
-    l_c: float = 0.3          # length-scale ell
+    #
+    # l_c is EITHER a scalar (isotropic kernel -- the default and the historical
+    # behaviour of this library) OR a length-d sequence, one length scale per
+    # input coordinate.  A vector l_c with optimize_hyperparams=False is a
+    # "frozen ARD" kernel: the anisotropy is declared up front and never fitted.
+    # See the ARD section of README.md and docs/ARD_IMPLEMENTATION_NOTE.md.
+    l_c: Union[float, Array] = 0.3   # length-scale ell: scalar, or (d,) for ARD
     sigma_f: float = 1.0      # kernel amplitude std (so variance is sigma_f^2)
     sigma_y: float = 0.1      # observation noise std
     jitter: float = 1e-10     # numerical stabilizer on diagonal
@@ -52,8 +58,16 @@ class GPConfig:
     optimize_hyperparams: bool = False
     hpo_every: int = 1        # optimize every k BO iterations (1 = every iteration)
 
-    # optional initial guess and bounds in log-space
-    # theta_log = log([l_c, sigma_f, sigma_y])
+    # optional initial guess and bounds in log-space.
+    #
+    # Layout of theta_log:
+    #   isotropic (ard=False) : log([l_c, sigma_f, sigma_y])            -> 3
+    #   ARD       (ard=True)  : log([l_1, ..., l_d, sigma_f, sigma_y])  -> d+2
+    #
+    # For convenience a 3-entry theta0_log / theta_bounds_log is accepted in
+    # ARD mode as well: its length-scale entry is broadcast to all d
+    # coordinates.  This is what lets an existing isotropic configuration be
+    # switched to ARD without rewriting its HPO box.
     theta0_log: Optional[Array] = None
     theta_bounds_log: Optional[List[Tuple[float, float]]] = None
 
@@ -78,6 +92,34 @@ class GPConfig:
     # of the absolute level of the objective.  Recommended when y values are large or
     # when HPO struggles to converge.
     normalize_y: bool = False
+
+    # ------------------------------------------------------------------
+    # Automatic Relevance Determination (ARD)
+    # ------------------------------------------------------------------
+    # ard=False (default) is the historical isotropic library, bit for bit.
+    #
+    # ard=True gives the kernel one length scale per input coordinate and HPO
+    # then optimises d+2 hyperparameters instead of 3.  A short length scale
+    # means the objective decorrelates quickly along that coordinate, i.e. the
+    # coordinate is "relevant"; a length scale that runs to the upper bound
+    # means no variation was detected over the search box at this sample size.
+    #
+    # COST: d-1 extra hyperparameters are fitted from the same n observations.
+    # ARD is a clear win offline (large n, screening / diagnosis) and can lose
+    # to the isotropic kernel in-campaign when n is small -- see
+    # docs/ARD_IMPLEMENTATION_NOTE.md, section "When NOT to switch this on".
+    #
+    # This flag only decides whether a SCALAR l_c is expanded to d length
+    # scales.  A vector l_c is anisotropic whatever this flag says, and HPO
+    # then optimises d+2 hyperparameters rather than silently collapsing the
+    # declared anisotropy back to one number.
+    ard: bool = False
+
+    # Seed for the random HPO restarts.  None (default) preserves the historical
+    # behaviour of drawing them from an unseeded Generator, which makes runs
+    # non-reproducible.  Set an integer to make HPO -- and hence a whole BO
+    # campaign -- bit-reproducible.
+    hpo_random_state: Optional[int] = None
 
 
 # general settigns of the expeted improvement
@@ -137,7 +179,7 @@ class BOConfig:
 
 @dataclass
 class GPModel:
-    l_c: float
+    l_c: Union[float, Array]   # scalar (isotropic) or (d,) array (ARD)
     sigma_f: float
     sigma_y: float
     jitter: float
@@ -147,7 +189,9 @@ class GPModel:
     alpha: Optional[Array] = None  # (Kss + σ²I)^(-1) y
     L: Optional[Array] = None      # Cholesky factor
 
-    # optional: store last optimized theta in log-space
+    # optional: store last optimized theta in log-space.
+    # Layout: log([l_1, ..., l_n_ell, sigma_f, sigma_y]); n_ell is 1 when the
+    # kernel is isotropic and d when ARD is active.
     theta_log: Optional[Array] = None
 
     # kernel kind (copied from GPConfig via build_gp_model)
@@ -353,33 +397,173 @@ def init_dataset(
 
 
 # ----------------------------
+# Length-scale helpers (isotropic / ARD)
+# ----------------------------
+# One scalar length scale is an isotropic kernel: the objective is assumed to
+# decorrelate at the same rate along every coordinate.  ARD replaces that scalar
+# by a vector, which is equivalent to rescaling the inputs by 1/l_i before an
+# isotropic kernel sees them.  Everything below is written so that a scalar l_c
+# takes exactly the code path it always did.
+
+
+def as_length_scales(l_c: Union[float, Array], d: Optional[int] = None) -> Array:
+    """
+    Normalise a length-scale specification to a 1-D positive float array.
+
+    INPUTS:
+      l_c : scalar (isotropic) or sequence of length d (ARD)
+      d   : optional input dimension used to validate a vector specification
+    OUTPUT:
+      ell : (1,) array for an isotropic kernel, or (d,) for ARD
+    """
+    ell = np.atleast_1d(np.asarray(l_c, dtype=float)).reshape(-1)
+    if ell.size == 0:
+        raise ValueError("l_c must contain at least one length scale.")
+    if not np.all(np.isfinite(ell)) or np.any(ell <= 0.0):
+        raise ValueError(f"length scales must be finite and strictly positive, got {ell}.")
+    if d is not None and ell.size not in (1, d):
+        raise ValueError(
+            f"l_c has {ell.size} length scales but the inputs have d = {d} "
+            f"coordinates; use a scalar (isotropic) or exactly d values (ARD)."
+        )
+    return ell
+
+
+def is_ard(l_c: Union[float, Array]) -> bool:
+    """True when l_c carries more than one length scale."""
+    return np.atleast_1d(np.asarray(l_c, dtype=float)).size > 1
+
+
+def format_length_scales(l_c: Union[float, Array], fmt: str = ".3e") -> str:
+    """Log-friendly rendering; a scalar formats exactly as it always did."""
+    ell = np.atleast_1d(np.asarray(l_c, dtype=float)).reshape(-1)
+    if ell.size == 1:
+        return format(float(ell[0]), fmt)
+    return "[" + ", ".join(format(float(v), fmt) for v in ell) + "]"
+
+
+def ard_whitening_weights(l_c: Union[float, Array], normalize: bool = True) -> Array:
+    """
+    Turn fitted ARD length scales into input-rescaling weights w_i = 1 / l_i.
+
+    Rescaling the inputs by these weights and then using an ISOTROPIC kernel is
+    algebraically identical to ARD with those length scales.  That is the route
+    to take when the anisotropy must be declared and frozen before a campaign
+    rather than fitted during one.
+
+    With normalize=True the weights are scaled so that their geometric mean is
+    one, which leaves the overall scale of the rescaled box -- and therefore the
+    meaning of a shared isotropic length scale and of any trust-region radius
+    expressed in it -- comparable to the unrescaled box.
+    """
+    ell = as_length_scales(l_c)
+    w = 1.0 / ell
+    if normalize:
+        w = w / float(np.exp(np.mean(np.log(w))))
+    return w
+
+
+def _expand_theta_bounds(
+    theta_bounds_log: Optional[List[Tuple[float, float]]], n_ell: int
+) -> Optional[List[Tuple[float, float]]]:
+    """
+    Bring an HPO box to the (n_ell + 2) layout.
+
+    A 3-entry box is read as (length-scale, sigma_f, sigma_y) and its
+    length-scale entry is broadcast to all n_ell coordinates.  A box that
+    already has n_ell + 2 entries is returned unchanged.
+    """
+    if theta_bounds_log is None:
+        return None
+    bounds = [(float(lo), float(hi)) for lo, hi in theta_bounds_log]
+    if len(bounds) == n_ell + 2:
+        return bounds
+    if len(bounds) == 3:
+        return [bounds[0]] * n_ell + [bounds[1], bounds[2]]
+    raise ValueError(
+        f"theta_bounds_log has {len(bounds)} entries; expected 3 (broadcast) "
+        f"or {n_ell + 2} (one per length scale, then sigma_f, sigma_y)."
+    )
+
+
+def _expand_theta_vector(theta_log: Array, n_ell: int) -> Array:
+    """Same broadcasting rule as _expand_theta_bounds, for a theta_log vector."""
+    theta = np.asarray(theta_log, dtype=float).reshape(-1)
+    if theta.size == n_ell + 2:
+        return theta
+    if theta.size == 3:
+        return np.concatenate([np.full(n_ell, theta[0]), theta[1:]])
+    raise ValueError(
+        f"theta0_log has {theta.size} entries; expected 3 (broadcast) or "
+        f"{n_ell + 2}."
+    )
+
+
+def _split_theta(theta_log: Array) -> Tuple[Array, float, float]:
+    """theta_log -> (length scales, sigma_f, sigma_y) in natural units."""
+    params = np.exp(np.asarray(theta_log, dtype=float).reshape(-1))
+    if params.size < 3:
+        raise ValueError("theta_log must hold at least [l_c, sigma_f, sigma_y].")
+    return params[:-2], float(params[-2]), float(params[-1])
+
+
+def _pack_length_scales(ell: Array) -> Union[float, Array]:
+    """Store one length scale as a float, several as an array."""
+    ell = np.asarray(ell, dtype=float).reshape(-1)
+    return float(ell[0]) if ell.size == 1 else ell.copy()
+
+
+# ----------------------------
 # GP kernel + fit / prediction (Cholesky reuse)
 # ----------------------------
 
-def rbf_kernel_amp(X1: Array, X2: Array, l_c: float, sigma_f: float) -> Array:
+def rbf_kernel_amp(X1: Array, X2: Array, l_c: Union[float, Array], sigma_f: float) -> Array:
     """
-    Squared-exponential (RBF) kernel with amplitude:
+    Squared-exponential (RBF) kernel with amplitude.
+
+    Isotropic (scalar l_c):
       k(x,x') = sigma_f^2 * exp(-||x-x'||^2 / (2 l_c^2))
+    ARD (vector l_c of length d):
+      k(x,x') = sigma_f^2 * exp(-0.5 * sum_i (x_i-x'_i)^2 / l_i^2)
+
     Assumes the latent function is infinitely differentiable.
     """
-    gamma = 0.5 / (l_c**2)
-    return (sigma_f**2) * rbf_kernel_(X1, X2, gamma=gamma)
+    ell = as_length_scales(l_c, np.shape(X1)[1] if np.ndim(X1) == 2 else None)
+    if ell.size == 1:
+        # Isotropic: the historical code path, untouched.
+        gamma = 0.5 / (float(ell[0])**2)
+        return (sigma_f**2) * rbf_kernel_(X1, X2, gamma=gamma)
+    # ARD: rescale the inputs, then use the very same isotropic routine.
+    Z1 = np.asarray(X1, dtype=float) / ell
+    Z2 = np.asarray(X2, dtype=float) / ell
+    return (sigma_f**2) * rbf_kernel_(Z1, Z2, gamma=0.5)
 
 
-def matern52_kernel_amp(X1: Array, X2: Array, l_c: float, sigma_f: float) -> Array:
+def matern52_kernel_amp(X1: Array, X2: Array, l_c: Union[float, Array],
+                        sigma_f: float) -> Array:
     """
     Matérn ν=5/2 kernel with amplitude:
       k(x,x') = sigma_f^2 * (1 + sqrt(5)*r/l + 5*r^2/(3*l^2)) * exp(-sqrt(5)*r/l)
-    where r = ||x-x'||_2.
+    where r = ||x-x'||_2 for a scalar l, and r is the ARD-scaled distance
+      r = sqrt( sum_i (x_i-x'_i)^2 / l_i^2 )   with l = 1
+    when l_c is a vector.
     Assumes only twice differentiability — more realistic for physical simulations.
     """
-    sqdist = np.sum((X1[:, None, :] - X2[None, :, :])**2, axis=2)
-    r      = np.sqrt(np.maximum(sqdist, 0.0))   # numerical safety for r=0
-    a      = np.sqrt(5.0) * r / l_c
+    ell = as_length_scales(l_c, np.shape(X1)[1] if np.ndim(X1) == 2 else None)
+    if ell.size == 1:
+        # Isotropic: the historical code path, untouched.
+        sqdist = np.sum((X1[:, None, :] - X2[None, :, :])**2, axis=2)
+        r      = np.sqrt(np.maximum(sqdist, 0.0))   # numerical safety for r=0
+        a      = np.sqrt(5.0) * r / float(ell[0])
+    else:
+        Z1 = np.asarray(X1, dtype=float) / ell
+        Z2 = np.asarray(X2, dtype=float) / ell
+        sqdist = np.sum((Z1[:, None, :] - Z2[None, :, :])**2, axis=2)
+        a      = np.sqrt(5.0) * np.sqrt(np.maximum(sqdist, 0.0))
     return (sigma_f**2) * (1.0 + a + a**2 / 3.0) * np.exp(-a)
 
 
-def kernel_amp(X1: Array, X2: Array, l_c: float, sigma_f: float,
+def kernel_amp(X1: Array, X2: Array, l_c: Union[float, Array], sigma_f: float,
                kind: str = "rbf") -> Array:
     """
     Dispatch to the selected kernel function.
@@ -400,6 +584,7 @@ def gp_fit(Xs, ys, l_c=0.3, sigma_f=1.0, sigma_y=0.1, jitter=1e-10, kernel="rbf"
     """
     Compute Cholesky factor and alpha for GP regression.
     ys is assumed to be already normalised if normalize_y=True was set upstream.
+    l_c is a scalar (isotropic) or a length-d array (ARD).
     """
     Xs = np.asarray(Xs, dtype=float)
     ys = np.asarray(ys, dtype=float).reshape(-1)
@@ -418,6 +603,7 @@ def gp_predict(X, Xs, alpha, L, l_c=0.3, sigma_f=1.0, return_cov=False, kernel="
     GP prediction using precomputed Cholesky factor.
     Returns mu and var/cov in the *normalised* space if normalize_y was used.
     Denormalisation is the responsibility of the caller (make_acquisition, plt_state).
+    l_c must be the SAME scalar or (d,) length-scale specification used in gp_fit.
     """
     X = np.asarray(X, dtype=float)
     Xs = np.asarray(Xs, dtype=float)
@@ -601,11 +787,17 @@ def negative_log_marginal_likelihood(
     kernel: str = "rbf",
 ) -> float:
     """
-    theta_log = log([l_c, sigma_f, sigma_y])
+    theta_log = log([l_1, ..., l_n_ell, sigma_f, sigma_y])
+
+    n_ell is inferred from the length of theta_log: 1 gives the isotropic
+    kernel (the historical 3-parameter case), d gives ARD.  No extra argument
+    is needed, so every existing caller keeps working unchanged.
+
     returns NLL = -log p(y | X, theta)
     y_train is assumed already normalised if normalize_y=True was used upstream.
     """
-    l_c, sigma_f, sigma_y = np.exp(theta_log)
+    ell, sigma_f, sigma_y = _split_theta(theta_log)
+    l_c = _pack_length_scales(ell)
 
     K = kernel_amp(X_train, X_train, l_c=l_c, sigma_f=sigma_f, kind=kernel)
     n = X_train.shape[0]
@@ -623,7 +815,11 @@ def negative_log_marginal_likelihood(
     if MLE_hist is not None:
         MLE_hist.append(float(ll))
     if param_hist is not None:
-        param_hist.append([float(l_c), float(sigma_f), float(sigma_y)])
+        # [l_1, ..., l_n_ell, sigma_f, sigma_y] -- for n_ell = 1 this is exactly
+        # the historical [l_c, sigma_f, sigma_y] record.
+        param_hist.append(
+            [float(v) for v in ell] + [float(sigma_f), float(sigma_y)]
+        )
 
     return -float(ll)
 
@@ -653,29 +849,59 @@ def optimize_gp_hyperparams(
     The run with the lowest NLL is kept.  If MLE_hist / param_hist are provided,
     a final single-restart run from the winner is executed so that the history
     arrays are populated (these are used only for diagnostics / plotting).
+
+    ARD
+    ---
+    With gp_cfg.ard=True the search runs over d+2 hyperparameters instead of 3.
+    Starting points, bounds and the warm start are all widened accordingly; a
+    3-entry theta0_log / theta_bounds_log is broadcast across the coordinates.
+    A stale warm start of the wrong length (e.g. carried over from an isotropic
+    fit) is discarded rather than reshaped.
     """
+    X = np.asarray(X, dtype=float)
     y = np.asarray(y, dtype=float).reshape(-1)
-    bounds = gp_cfg.theta_bounds_log
+
+    d = X.shape[1]
+    # A vector l_c implies ARD for the purposes of HPO even when gp_cfg.ard is
+    # False: refitting a single scalar over an anisotropic seed would silently
+    # discard the anisotropy the caller declared.
+    n_ell = d if (gp_cfg.ard or is_ard(gp.l_c)) else 1
+    n_theta = n_ell + 2
+    bounds = _expand_theta_bounds(gp_cfg.theta_bounds_log, n_ell)
 
     # ------------------------------------------------------------------
     # Build candidate starting points in log-space
     # ------------------------------------------------------------------
     x0_list: List[Array] = []
 
-    # 1) warm start: last optimised theta (best single candidate)
-    if gp.theta_log is not None:
-        x0_list.append(gp.theta_log.copy())
+    # 1) warm start: last optimised theta (best single candidate).
+    #    Only usable if it has the layout we are optimising now.
+    if gp.theta_log is not None and np.size(gp.theta_log) == n_theta:
+        x0_list.append(np.asarray(gp.theta_log, dtype=float).reshape(-1).copy())
 
     # 2) user-provided or current hyperparameters
     if gp_cfg.theta0_log is not None:
-        x0_list.append(np.asarray(gp_cfg.theta0_log, dtype=float).reshape(-1))
+        x0_list.append(_expand_theta_vector(gp_cfg.theta0_log, n_ell))
     else:
-        x0_list.append(np.log([gp.l_c, gp.sigma_f, gp.sigma_y]))
+        ell_now = as_length_scales(gp.l_c, d)
+        if ell_now.size != n_ell:
+            # scalar seed, ARD layout: broadcast it across the coordinates
+            ell_now = np.full(n_ell, float(ell_now[0]))
+        x0_list.append(np.log(np.concatenate([ell_now, [gp.sigma_f, gp.sigma_y]])))
 
-    # 3) random restarts — unseeded for diversity across BO iterations
-    rng_hpo = np.random.default_rng()
+    # 3) random restarts.  hpo_random_state=None reproduces the historical
+    #    unseeded Generator; an integer makes the restarts reproducible.
+    rng_hpo = np.random.default_rng(gp_cfg.hpo_random_state)
     for _ in range(max(0, gp_cfg.n_hpo_restarts)):
-        x0_list.append(rng_hpo.standard_normal(3))
+        x0 = rng_hpo.standard_normal(n_theta)
+        if bounds is not None:
+            # L-BFGS-B clips an out-of-box x0 internally; doing it here as well
+            # is behaviourally identical and makes the restart meaningful when
+            # the box is narrow (as it is for a bounded l_c floor).
+            lo = np.array([b[0] for b in bounds], dtype=float)
+            hi = np.array([b[1] for b in bounds], dtype=float)
+            x0 = np.clip(x0, lo, hi)
+        x0_list.append(x0)
 
     # ------------------------------------------------------------------
     # Run L-BFGS-B from every starting point; keep best NLL
@@ -714,13 +940,98 @@ def optimize_gp_hyperparams(
     # ------------------------------------------------------------------
     # Commit optimised hyperparameters and warm-start seed for next call
     # ------------------------------------------------------------------
-    l_c, sigma_f, sigma_y = np.exp(best_theta)
-    gp.l_c     = float(l_c)
+    ell, sigma_f, sigma_y = _split_theta(best_theta)
+    gp.l_c     = _pack_length_scales(ell)
     gp.sigma_f = float(sigma_f)
     gp.sigma_y = float(sigma_y)
-    gp.theta_log = best_theta.copy()   # stored for warm start at next iteration
+    gp.theta_log = np.asarray(best_theta, dtype=float).reshape(-1).copy()
 
     return gp
+
+
+def estimate_ard_length_scales(
+    X: Array,
+    y: Array,
+    kernel: str = "matern52",
+    theta_bounds_log: Optional[List[Tuple[float, float]]] = None,
+    n_restarts: int = 8,
+    normalize_y: bool = True,
+    jitter: float = 1e-10,
+    random_state: Optional[int] = None,
+) -> Dict[str, Any]:
+    """
+    Fit an ARD kernel ONCE to an existing dataset and report what it found.
+
+    This is the offline / screening entry point.  It is deliberately separate
+    from the BO driver: the intended use is to measure the anisotropy of an
+    objective on an archive of evaluations, and then either
+
+      (a) declare the resulting length scales as a FROZEN kernel --
+          GPConfig(l_c=result["length_scales"], optimize_hyperparams=False), or
+      (b) rescale the inputs by result["whitening_weights"] and keep an
+          isotropic kernel, which is algebraically the same model,
+
+    without ever fitting d+2 hyperparameters inside the campaign itself.
+
+    INPUTS:
+      X, y             : (n, d) inputs and (n,) observations
+      kernel           : "rbf" or "matern52"
+      theta_bounds_log : HPO box; 3 entries are broadcast over the coordinates
+      n_restarts       : random restarts on top of the default start
+      normalize_y      : centre/scale y before fitting (recommended)
+      random_state     : seed for the restarts; set it for a reproducible fit
+
+    OUTPUT: dict with
+      length_scales     : (d,) fitted length scales
+      sigma_f, sigma_y  : amplitude and noise std (normalised units if
+                          normalize_y, else the units of y)
+      nll               : negative log marginal likelihood at the optimum
+      theta_log         : the raw optimised log-vector
+      spread            : max(l) / min(l), the headline anisotropy number
+      relevance_order   : coordinate indices sorted from shortest to longest
+                          length scale, i.e. most to least relevant
+      whitening_weights : 1 / l normalised to unit geometric mean
+      y_mean, y_std     : normalisation statistics actually applied
+    """
+    X = np.asarray(X, dtype=float)
+    y = np.asarray(y, dtype=float).reshape(-1)
+    if X.ndim != 2 or X.shape[0] != y.size or y.size == 0:
+        raise ValueError("X must be (n, d) and y must be (n,), with n > 0.")
+    if not np.all(np.isfinite(X)) or not np.all(np.isfinite(y)):
+        raise ValueError("X and y must be finite.")
+
+    gp_cfg = GPConfig(
+        l_c=1.0,
+        sigma_f=1.0,
+        sigma_y=0.1,
+        jitter=jitter,
+        optimize_hyperparams=True,
+        hpo_every=1,
+        n_hpo_restarts=int(n_restarts),
+        kernel=kernel,
+        normalize_y=bool(normalize_y),
+        theta_bounds_log=theta_bounds_log,
+        ard=True,
+        hpo_random_state=random_state,
+    )
+    gp = fit_gp(build_gp_model(gp_cfg), X, y, gp_cfg, it=0)
+
+    ell = as_length_scales(gp.l_c, X.shape[1])
+    nll = negative_log_marginal_likelihood(
+        gp.theta_log, gp.Xs, gp.ys, jitter=jitter, kernel=kernel
+    )
+    return dict(
+        length_scales=ell.copy(),
+        sigma_f=float(gp.sigma_f),
+        sigma_y=float(gp.sigma_y),
+        nll=float(nll),
+        theta_log=np.asarray(gp.theta_log, dtype=float).copy(),
+        spread=float(np.max(ell) / np.min(ell)),
+        relevance_order=np.argsort(ell),
+        whitening_weights=ard_whitening_weights(ell),
+        y_mean=float(gp.y_mean),
+        y_std=float(gp.y_std),
+    )
 
 
 # ----------------------------
@@ -728,9 +1039,14 @@ def optimize_gp_hyperparams(
 # ----------------------------
 
 def build_gp_model(gp_cfg: GPConfig) -> GPModel:
-    """Create an unfitted GP container."""
+    """
+    Create an unfitted GP container.
+
+    A vector l_c is copied rather than referenced, so mutating the model never
+    reaches back into the configuration object.
+    """
     return GPModel(
-        l_c=gp_cfg.l_c,
+        l_c=_pack_length_scales(as_length_scales(gp_cfg.l_c)),
         sigma_f=gp_cfg.sigma_f,
         sigma_y=gp_cfg.sigma_y,
         jitter=gp_cfg.jitter,
@@ -748,9 +1064,22 @@ def fit_gp(gp: GPModel, X: Array, y: Array, gp_cfg: GPConfig, it: int) -> GPMode
 
     If gp_cfg.optimize_hyperparams=True, HPO runs every gp_cfg.hpo_every
     iterations on the (already normalised) gp.ys.
+
+    ARD bookkeeping: the input dimension is only known here, so this is where a
+    scalar l_c is expanded to d length scales when gp_cfg.ard is set, and where
+    a vector l_c is checked against the data.
     """
     gp.Xs = np.asarray(X, dtype=float)
     y_raw = np.asarray(y, dtype=float).reshape(-1)
+
+    # ------------------------------------------------------------------
+    # Resolve the length-scale layout against the data
+    # ------------------------------------------------------------------
+    d = gp.Xs.shape[1]
+    ell = as_length_scales(gp.l_c, d)          # raises on a d-mismatch
+    if gp_cfg.ard and ell.size == 1:
+        ell = np.full(d, float(ell[0]))        # scalar seed -> one scale per coord
+    gp.l_c = _pack_length_scales(ell)
 
     # ------------------------------------------------------------------
     # Output normalisation (optional)
@@ -1209,6 +1538,9 @@ def _export_iteration_data(
       it, X, y, x_next, y_next, Xcand, a, a_best, l_c, sigma_f, sigma_y,
       y_mean, y_std
 
+    l_c is always stored as a 1-D array: length 1 for an isotropic kernel and
+    length d under ARD.
+
     Additionally for 1D problems:
       Xplot, mu, std  (dense GP posterior on a regular grid — useful for animation)
 
@@ -1227,7 +1559,8 @@ def _export_iteration_data(
         Xcand   = acq_res.Xcand,
         a       = acq_res.a,
         a_best  = np.array([acq_res.a_best]),
-        l_c     = np.array([gp.l_c]),
+        # (1,) for an isotropic kernel, (d,) under ARD
+        l_c     = np.atleast_1d(np.asarray(gp.l_c, dtype=float)),
         sigma_f = np.array([gp.sigma_f]),
         sigma_y = np.array([gp.sigma_y]),
         y_mean  = np.array([gp.y_mean]),
@@ -1507,7 +1840,8 @@ def bayesian_optimization(
                 best_x=x_best.copy(),
                 best_y=y_best,
                 n=len(y),
-                l_c=gp.l_c,
+                l_c=(np.array(gp.l_c, dtype=float, copy=True)
+                     if np.ndim(gp.l_c) > 0 else gp.l_c),
                 sigma_f=gp.sigma_f,
                 sigma_y=gp.sigma_y,
             )
@@ -1530,7 +1864,7 @@ def bayesian_optimization(
                 f"n_proposed={len(x_proposed)} | "
                 f"n_added={len(round_y_array)} | "
                 f"best_y={y_best:.6e} | "
-                f"l_c={gp.l_c:.3e} | "
+                f"l_c={format_length_scales(gp.l_c)} | "
                 f"sigma_f={gp.sigma_f:.3e} | "
                 f"sigma_y={gp.sigma_y:.3e}"
             )

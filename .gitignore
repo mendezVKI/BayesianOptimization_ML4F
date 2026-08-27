@@ -1,0 +1,26 @@
+# --- Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# --- Generated BO outputs (states/, run.log, figures)
+_generated/
+examples/out*/
+**/states/
+*.gif
+
+# --- LaTeX build products (docs/BO_ML4F_documentation.pdf IS tracked)
+docs/_build/
+*.aux
+*.synctex.gz
+*.toc
+*.fls
+*.fdb_latexmk
+
+# --- OS / editor
+.DS_Store
+Thumbs.db
+.vscode/

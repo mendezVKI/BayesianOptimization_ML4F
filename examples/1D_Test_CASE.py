@@ -9,6 +9,10 @@ a GIF of the GP posterior and acquisition function evolution.
 @author: mendez, lecomte
 """
 
+import os as _os
+import sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+
 import numpy as np
 import BO_ML4F as bo
 

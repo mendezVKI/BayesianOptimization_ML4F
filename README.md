@@ -5,20 +5,48 @@ on Reinforcement Twinning applied to the Burger equation control case.
 
 ---
 
-## Main library (root folder)
+## Repository layout
+
+```
+BO_ML4F.py        main library      <- import this
+BO_func_YL.py     low-level helpers (kernels, GP fit/predict, EI)
+conftest.py       puts the repo root on sys.path for pytest
+docs/             LaTeX documentation + the ARD implementation note
+examples/         runnable test cases and the animation post-processor
+tests/            pytest suite
+legacy/           earlier prototypes, kept for reference
+_generated/       BO outputs from earlier runs (untracked)
+literature/       reference papers
+```
+
+The two library files stay at the repository root on purpose: downstream
+projects (e.g. `RSPA_Paper/Burger_CASE/RT_ML4F`) put this directory on
+`sys.path` and `import BO_ML4F` by name.
 
 | File | Description |
 |------|-------------|
-| `BO_ML4F.py` | Main library. Contains all dataclasses, GP routines, acquisition functions, and the `bayesian_optimization` driver. |
+| `BO_ML4F.py` | Main library. Dataclasses, GP routines, ARD, acquisition functions, and the `bayesian_optimization` driver. |
 | `BO_func_YL.py` | Lower-level helper module (kernels, GP fit/predict, EI, plotting utilities). Required by `BO_ML4F.py`. |
-| `BO_ML4F_documentation.tex` | Full implementation notes (LaTeX): kernel functions, GP regression, output normalisation, HPO, rank-1 Cholesky update, acquisition functions, and configuration reference. |
-| `1D_Test_CASE.py` | 1D smoke-test: minimises f(x) = sin(5x)(1 − tanh(x²)) + ε on [−2, 2]. Exports per-iteration `.npz` snapshots to `./out/states/`. |
-| `3D_Test_CASE.py` | 3D test: minimises f(x) = sin(3x₀) + 0.5 cos(5x₁) + 0.2 x₂² + ε on [−2, 2]³. Exports snapshots to `./out_3d/states/`. |
-| `make_animation_1D.py` | Post-processing script: loads `state_NNN.npz` snapshots and produces a GIF (or MP4) showing the GP posterior and acquisition function evolution. Run after `1D_Test_CASE.py`. |
+| `docs/BO_ML4F_documentation.tex` | Full implementation notes (LaTeX): kernel functions, GP regression, output normalisation, HPO, rank-1 Cholesky update, acquisition functions, and configuration reference. |
+| `docs/ARD_IMPLEMENTATION_NOTE.md` | Design and usage note for Automatic Relevance Determination: what changed, the compatibility contract, and when *not* to switch it on. |
+| `examples/1D_Test_CASE.py` | 1D smoke-test: minimises f(x) = sin(5x)(1 - tanh(x^2)) + eps on [-2, 2]. Exports per-iteration `.npz` snapshots to `./out/states/`. |
+| `examples/3D_Test_CASE.py` | 3D test: minimises f(x) = sin(3x0) + 0.5 cos(5x1) + 0.2 x2^2 + eps on [-2, 2]^3. Exports snapshots to `./out_3d/states/`. |
+| `examples/make_animation_1D.py` | Post-processing: loads `state_NNN.npz` snapshots and produces a GIF (or MP4). Run after `1D_Test_CASE.py`. |
+| `tests/test_ard.py` | ARD test suite (backwards compatibility, kernel algebra, HPO, prediction, rank-1 update, driver). |
+| `tests/test_batch_ei_adam.py` | Pre-existing regression tests for batch EI and optional ADAM refinement. |
+
+Run the examples from inside `examples/`, and the tests from the repository root:
+
+```
+cd examples && python 1D_Test_CASE.py
+pytest tests/ -q
+```
 
 ### Key features of `BO_ML4F.py`
 
 - **Two kernels**: squared-exponential (RBF) and Matérn ν=5/2, switchable via `GPConfig(kernel="matern52")`.
+- **Automatic Relevance Determination (ARD)**: one length scale per input coordinate, opt-in via `GPConfig(ard=True)` or by passing a vector `l_c`. Off by default; the isotropic path is unchanged bit for bit. See the ARD section below and `docs/ARD_IMPLEMENTATION_NOTE.md`.
+- **Reproducible HPO**: `GPConfig(hpo_random_state=...)` seeds the multi-restart hyperparameter search. Left at `None` the restarts are unseeded, as they always were.
 - **Output normalisation**: centre and scale y before fitting to keep hyperparameters well-conditioned (`normalize_y=True`).
 - **Rank-1 Cholesky update**: O(n²) GP extension once the dataset reaches `rank1_threshold` points, replacing O(n³) full refactorisation. The threshold is checked against the *total* dataset size (initial points + BO iterations), so providing a large initial set can activate it immediately.
 - **Multi-restart HPO**: warm start + user init + random restarts in log-space via L-BFGS-B (`optimize_hyperparams=True`, `n_hpo_restarts=3`). Frequency controlled by `hpo_every`.
@@ -163,14 +191,77 @@ objective value.
 
 ---
 
+## Automatic Relevance Determination (ARD)
+
+An isotropic kernel assumes the objective decorrelates at the same rate along every coordinate.
+Mapping the inputs to a unit box makes coordinates commensurable but not equally influential, and
+when they are not, the isotropic kernel books the difference as observation noise: the posterior
+mean flattens and the acquisition stops ranking candidates. ARD replaces the scalar length scale by
+one per coordinate, which is exactly an isotropic kernel on rescaled inputs:
+
+```
+k_ARD(x, x'; l) == k_iso(x/l, x'/l; 1)
+```
+
+**ARD is off by default and the isotropic path is untouched.** Existing scripts need no changes.
+
+### Three ways to use it
+
+```python
+import numpy as np
+import BO_ML4F as bo
+
+# (1) OFFLINE SCREENING -- measure the anisotropy of an objective from an archive.
+#     This is what ARD is unambiguously good for.
+result = bo.estimate_ard_length_scales(
+    X_unit, y,
+    kernel="matern52",
+    theta_bounds_log=[(np.log(0.05), np.log(20.0)),   # length scales (broadcast to all d)
+                      (np.log(0.20), np.log(5.00)),   # sigma_f
+                      (np.log(0.02), np.log(1.50))],  # sigma_y
+    n_restarts=8,
+    random_state=0,
+)
+result["length_scales"]      # (d,) fitted scales
+result["spread"]             # max(l)/min(l): the headline anisotropy number
+result["relevance_order"]    # coordinate indices, most relevant first
+result["whitening_weights"]  # 1/l, normalised to unit geometric mean
+
+# (2) FROZEN ARD -- declare the measured scales before a campaign, never re-fit them.
+gp_cfg = bo.GPConfig(l_c=result["length_scales"], kernel="matern52",
+                     normalize_y=True, optimize_hyperparams=False)
+
+# (3) FITTED ARD -- optimise d+2 hyperparameters inside the campaign.
+gp_cfg = bo.GPConfig(ard=True, kernel="matern52", normalize_y=True,
+                     optimize_hyperparams=True, hpo_random_state=0)
+```
+
+A 3-entry `theta_bounds_log` / `theta0_log` is broadcast across the coordinates in ARD mode, so an
+existing isotropic HPO box can be reused unchanged.
+
+### When *not* to switch it on
+
+ARD fits `d - 1` extra hyperparameters from the same observations you are searching with. On the
+RSPA Burgers policy objective at 55 observations in 13 dimensions, fitted ARD lifts held-out
+Spearman from 0.573 to 0.703 but with three times the between-campaign spread (±0.11 against
+±0.06); at 30 observations it is *worse* than isotropic on RMSE. A dimensionality reduction derived
+beforehand beats both at every budget. If a study's claim is about reproducibility, prefer
+option (2) over option (3).
+
+Enabling ARD downstream also couples to things that were derived under isotropy — HPO length-scale
+floors, trust-region radii, anything that formats `l_c` with `:.3e`. `docs/ARD_IMPLEMENTATION_NOTE.md`
+section 6.4 is the checklist.
+
+---
+
 ## Subdirectories
 
-### `BO_HOML26/`
+### `legacy/BO_HOML26/`
 Earlier prototype implementation used in the Hands-On Machine Learning for
 Fluid dynamics (HOML26) course. Contains standalone 1D and 3D BO examples
 and a plotting utility for the EI acquisition function. Kept for reference.
 
-### `Single_Fid_BO_last_version/`
+### `legacy/Single_Fid_BO_last_version/`
 Development branch with versioned snapshots (`BO_ML4F_v0_1.py` through
 `v0_3.py`), benchmarks, rank-1 update debugging scripts, and 1D/2D test
 cases (Branin, Rosenbrock). Kept as development archive.
@@ -184,12 +275,13 @@ numpy
 scipy
 scikit-learn   (rbf_kernel used internally)
 matplotlib
-pillow         (for GIF export via make_animation_1D.py)
+pillow         (for GIF export via examples/make_animation_1D.py)
+pytest         (to run the test suite)
 ```
 
 Install with:
 ```
-pip install numpy scipy scikit-learn matplotlib pillow
+pip install numpy scipy scikit-learn matplotlib pillow pytest
 ```
 
 ---
