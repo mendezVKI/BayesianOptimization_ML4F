@@ -1,0 +1,20 @@
+2026-08-27 15:04:10 | INFO | Bounds: [(-2.0, 2.0), (-2.0, 2.0)]
+2026-08-27 15:04:10 | INFO | BOConfig: BOConfig(n_init=50, n_iter=10, init_sampling='lhs', random_state=1234)
+2026-08-27 15:04:10 | INFO | GPConfig: GPConfig(l_c=0.2, sigma_f=1.0, sigma_y=0.1, jitter=1e-10, optimize_hyperparams=True, hpo_every=10, theta0_log=None, theta_bounds_log=None, rank_one=True, rank_one_threshold=1000)
+2026-08-27 15:04:10 | INFO | AcqConfig: AcqConfig(kind='EI', xi=0.01, kappa=2.0, maximize=False)
+2026-08-27 15:04:10 | INFO | OptimConfig: OptimConfig(method='random', global_method='refine', optimizer='L-BFGS-B', n_raw_samples=2000, grid_n_per_dim=20, n_restarts=10, local_maxiter=200, n_candidates=1, batch_distance_scale=0.05)
+2026-08-27 15:04:10 | INFO | GradientRefinementConfig: GradientRefinementConfig(enabled=False, n_steps=50, learning_rate=0.01, beta1=0.9, beta2=0.999, epsilon=1e-08, distance_threshold=0.001, close_pair_policy='final')
+2026-08-27 15:04:10 | INFO | SaveConfig: SaveConfig(out_path='C:\\Users\\lecomte\\OneDrive - vki.ac.be\\GitHub\\BayesianOptimization_ML4F\\examples\\_output\\sbo_branin_2D\\2026-08-27_15-04-10', create_timestamp=True, log_enabled=True, log_filename='log.log', trace_enabled=True, trace_filename='trace.npz', trace_flush_every=None, snapshot_enabled=False, snapshot_every=1, snapshot_dirname='snapshots', snapshot_flush_every=None, plt_state_enabled=True, plt_conv_enabled=True, plt_hist_enabled=True, plt_MLE_conv_enbable=True, plt_all=True, plot_every=1, dpi=250)
+2026-08-27 15:04:10 | INFO | Random seed: 1234
+2026-08-27 15:04:10 | INFO | it  |    x_next     |      y_next     |      best_y     |    l_c    |  sigma_f  |  sigma_y  | batch
+2026-08-27 15:04:10 | INFO | ---------------------------------------------------------------------------------------------------------
+2026-08-27 15:04:28 | INFO | 000 |   1.995459e+00 |   7.952697e+00 |   1.000242e+01 |    9.720e-01 |    4.634e+00 |    3.928e-03 | n_prop= 1 | n_add= 1
+2026-08-27 15:04:37 | INFO | 001 |   1.978403e+00 |   8.203765e+00 |   7.952697e+00 |    9.720e-01 |    4.634e+00 |    3.928e-03 | n_prop= 1 | n_add= 1
+2026-08-27 15:04:45 | INFO | 002 |   1.980404e+00 |   9.378414e+00 |   7.952697e+00 |    9.720e-01 |    4.634e+00 |    3.928e-03 | n_prop= 1 | n_add= 1
+2026-08-27 15:04:49 | INFO | 003 |   1.951544e+00 |   8.443493e+00 |   7.952697e+00 |    9.720e-01 |    4.634e+00 |    3.928e-03 | n_prop= 1 | n_add= 1
+2026-08-27 15:05:01 | INFO | 004 |   1.963928e+00 |   8.278749e+00 |   7.952697e+00 |    9.720e-01 |    4.634e+00 |    3.928e-03 | n_prop= 1 | n_add= 1
+2026-08-27 15:05:05 | INFO | 005 |   1.991846e+00 |   8.701003e+00 |   7.952697e+00 |    9.720e-01 |    4.634e+00 |    3.928e-03 | n_prop= 1 | n_add= 1
+2026-08-27 15:05:19 | INFO | 006 |   1.974567e+00 |   8.332694e+00 |   7.952697e+00 |    9.720e-01 |    4.634e+00 |    3.928e-03 | n_prop= 1 | n_add= 1
+2026-08-27 15:05:23 | INFO | 007 |   1.996370e+00 |   8.571101e+00 |   7.952697e+00 |    9.720e-01 |    4.634e+00 |    3.928e-03 | n_prop= 1 | n_add= 1
+2026-08-27 15:05:26 | INFO | 008 |   1.955306e+00 |   8.408722e+00 |   7.952697e+00 |    9.720e-01 |    4.634e+00 |    3.928e-03 | n_prop= 1 | n_add= 1
+2026-08-27 15:05:29 | INFO | 009 |   1.998398e+00 |   8.941794e+00 |   7.952697e+00 |    9.720e-01 |    4.634e+00 |    3.928e-03 | n_prop= 1 | n_add= 1

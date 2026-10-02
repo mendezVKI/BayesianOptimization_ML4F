@@ -1,4 +1,6 @@
-# bo_ml4f
+# pyRAMBO
+
+**R**ank-One **A**ccelerated **M**ulti-objective/fidelity/output for **B**ayesian **O**ptimization.
 
 A lightweight Bayesian Optimization (BO) framework developed within the
 Machine Learning for Fluid Systems group (ML4F): https://www.mendezma.com/
@@ -18,14 +20,14 @@ cd BayesianOptimization_ML4F
 pip install -e ".[test]"
 ```
 
-This installs the `bo_ml4f` package in editable mode, plus `pytest` for
-running the test suite.
+This installs the `pyRAMBO` package (with its `sbo`, `mfbo` and `mobo`
+subpackages) in editable mode, plus `pytest` for running the test suite.
 
 ## Quickstart
 
 ```python
 import numpy as np
-import bo_ml4f as bo
+from pyRAMBO import sbo as bo
 
 f = lambda x: (x[0] - 0.7) ** 2  # objective to minimize
 
@@ -41,6 +43,10 @@ res = bo.bayesian_optimization(
 
 print(res.best_x, res.best_y)
 ```
+
+The multi-fidelity and multi-objective drivers follow the same pattern:
+`from pyRAMBO import mfbo` (`mfbo.multi_fidelity_bayesian_optimization`) and
+`from pyRAMBO import mobo` (`mobo.multi_objective_bayesian_optimization`).
 
 See [`examples/`](examples/) for full, runnable tutorials (1D/2D benchmark
 functions, plotting, two-tier persistence, hyperparameter optimization).
@@ -63,15 +69,17 @@ functions, plotting, two-tier persistence, hyperparameter optimization).
 
 ## Project layout
 
-Three sibling packages, one per flavour of Bayesian optimization. They share
-a deliberately identical module structure but no code: each is independent,
-with no common base module and no imports between them.
+One package, `pyRAMBO`, with three sibling subpackages, one per flavour of
+Bayesian optimization. They share a deliberately identical module structure
+but no code: each is independent, with no common base module and no imports
+between them.
 
 ```
-src/
-    sbo/        single-fidelity, single-objective BO
-    mfbo/       multi-fidelity BO (AR1 / Kennedy & O'Hagan)
-    mobo/       multi-objective BO (ICM GP + Monte-Carlo EHVI)
+src/pyRAMBO/
+    __init__.py     exposes the three subpackages below
+    sbo/            single-fidelity, single-objective BO
+    mfbo/           multi-fidelity BO (AR1 / Kennedy & O'Hagan)
+    mobo/           multi-objective BO (ICM GP + Monte-Carlo EHVI)
         core.py         configs, GP model, acquisition, BO driver
         saving.py       experiment folders, run logging
         persistence.py  two-tier (trace / snapshot) run persistence and replay
@@ -82,14 +90,14 @@ tests/          pytest test suite
 paper/          JOSS paper (paper.md, paper.bib)
 ```
 
-In every package, `core.py` has no dependency on matplotlib/logging beyond
+In every subpackage, `core.py` has no dependency on matplotlib/logging beyond
 the `saving`/`plotting`/`persistence` modules it composes; `plotting.py` and
 `persistence.py` are only imported the first time a run actually needs them.
 
-The example folders are named after the packages they demonstrate
-(`examples/mobo/` alongside `src/mobo/`), so the examples reach shared code
-as `examples.benchmarks` and only ever add the repository **root** to
-`sys.path` — never `examples/` itself, which would shadow the libraries.
+The example folders are named after the subpackages they demonstrate
+(`examples/mobo/` for `pyRAMBO.mobo`). The examples only ever add the
+repository **root** to `sys.path` and reach shared code as
+`examples.benchmarks`.
 [`examples/README.md`](examples/README.md) explains the rule and how to run
 the examples.
 

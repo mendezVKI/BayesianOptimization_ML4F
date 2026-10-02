@@ -1,0 +1,30 @@
+2026-08-27 15:06:43 | INFO | Bounds: [(-2.0, 2.0), (-2.0, 2.0)]
+2026-08-27 15:06:43 | INFO | BOConfig: BOConfig(n_init=50, n_iter=20, init_sampling='lhs', random_state=1234)
+2026-08-27 15:06:43 | INFO | GPConfig: GPConfig(l_c=0.2, sigma_f=1.0, sigma_y=0.1, jitter=1e-10, optimize_hyperparams=True, hpo_every=10, theta0_log=None, theta_bounds_log=None, rank_one=True, rank_one_threshold=1000)
+2026-08-27 15:06:43 | INFO | AcqConfig: AcqConfig(kind='EI', xi=0.01, kappa=2.0, maximize=False)
+2026-08-27 15:06:43 | INFO | OptimConfig: OptimConfig(method='random', global_method='refine', optimizer='L-BFGS-B', n_raw_samples=2000, grid_n_per_dim=20, n_restarts=10, local_maxiter=200, n_candidates=1, batch_distance_scale=0.05)
+2026-08-27 15:06:43 | INFO | GradientRefinementConfig: GradientRefinementConfig(enabled=False, n_steps=50, learning_rate=0.01, beta1=0.9, beta2=0.999, epsilon=1e-08, distance_threshold=0.001, close_pair_policy='final')
+2026-08-27 15:06:43 | INFO | SaveConfig: SaveConfig(out_path='C:\\Users\\lecomte\\OneDrive - vki.ac.be\\GitHub\\BayesianOptimization_ML4F\\examples\\_output\\sbo_rosenbrock_2D\\2026-08-27_15-06-43', create_timestamp=True, log_enabled=True, log_filename='log.log', trace_enabled=True, trace_filename='trace.npz', trace_flush_every=None, snapshot_enabled=False, snapshot_every=1, snapshot_dirname='snapshots', snapshot_flush_every=None, plt_state_enabled=True, plt_conv_enabled=True, plt_hist_enabled=True, plt_MLE_conv_enbable=True, plt_all=True, plot_every=1, dpi=250)
+2026-08-27 15:06:43 | INFO | Random seed: 1234
+2026-08-27 15:06:43 | INFO | it  |    x_next     |      y_next     |      best_y     |    l_c    |  sigma_f  |  sigma_y  | batch
+2026-08-27 15:06:43 | INFO | ---------------------------------------------------------------------------------------------------------
+2026-08-27 15:06:54 | INFO | 000 |  -1.386103e+00 |  -2.295813e-02 |  -1.877521e-01 |    1.026e+00 |    5.805e+01 |    1.558e-02 | n_prop= 1 | n_add= 1
+2026-08-27 15:07:03 | INFO | 001 |  -1.489810e+00 |  -9.603206e-04 |  -1.877521e-01 |    1.026e+00 |    5.805e+01 |    1.558e-02 | n_prop= 1 | n_add= 1
+2026-08-27 15:07:09 | INFO | 002 |   1.211458e+00 |   9.387473e-02 |  -1.877521e-01 |    1.026e+00 |    5.805e+01 |    1.558e-02 | n_prop= 1 | n_add= 1
+2026-08-27 15:07:14 | INFO | 003 |   1.439088e+00 |   3.757498e-02 |  -1.877521e-01 |    1.026e+00 |    5.805e+01 |    1.558e-02 | n_prop= 1 | n_add= 1
+2026-08-27 15:07:19 | INFO | 004 |   7.432617e-01 |   5.592996e-02 |  -1.877521e-01 |    1.026e+00 |    5.805e+01 |    1.558e-02 | n_prop= 1 | n_add= 1
+2026-08-27 15:07:26 | INFO | 005 |  -3.568219e-01 |  -8.095450e-02 |  -1.877521e-01 |    1.026e+00 |    5.805e+01 |    1.558e-02 | n_prop= 1 | n_add= 1
+2026-08-27 15:07:30 | INFO | 006 |  -4.332499e-01 |   2.925877e-02 |  -1.877521e-01 |    1.026e+00 |    5.805e+01 |    1.558e-02 | n_prop= 1 | n_add= 1
+2026-08-27 15:07:34 | INFO | 007 |  -1.364141e+00 |  -5.604643e-02 |  -1.877521e-01 |    1.026e+00 |    5.805e+01 |    1.558e-02 | n_prop= 1 | n_add= 1
+2026-08-27 15:07:39 | INFO | 008 |   1.175879e+00 |  -4.219066e-02 |  -1.877521e-01 |    1.026e+00 |    5.805e+01 |    1.558e-02 | n_prop= 1 | n_add= 1
+2026-08-27 15:07:43 | INFO | 009 |  -1.382233e+00 |   5.760806e-02 |  -1.877521e-01 |    1.026e+00 |    5.805e+01 |    1.558e-02 | n_prop= 1 | n_add= 1
+2026-08-27 15:07:59 | INFO | 010 |  -1.513870e+00 |   2.866533e-01 |  -1.877521e-01 |    1.024e+00 |    5.934e+01 |    1.503e-02 | n_prop= 1 | n_add= 1
+2026-08-27 15:08:06 | INFO | 011 |   9.224689e-01 |  -6.131885e-02 |  -1.877521e-01 |    1.024e+00 |    5.934e+01 |    1.503e-02 | n_prop= 1 | n_add= 1
+2026-08-27 15:08:18 | INFO | 012 |   1.396527e+00 |  -1.088398e-01 |  -1.877521e-01 |    1.024e+00 |    5.934e+01 |    1.503e-02 | n_prop= 1 | n_add= 1
+2026-08-27 15:08:23 | INFO | 013 |   1.449751e+00 |   6.885908e-02 |  -1.877521e-01 |    1.024e+00 |    5.934e+01 |    1.503e-02 | n_prop= 1 | n_add= 1
+2026-08-27 15:08:35 | INFO | 014 |   1.222661e+00 |   7.545868e-02 |  -1.877521e-01 |    1.024e+00 |    5.934e+01 |    1.503e-02 | n_prop= 1 | n_add= 1
+2026-08-27 15:08:44 | INFO | 015 |   8.956728e-01 |  -1.449945e-01 |  -1.877521e-01 |    1.024e+00 |    5.934e+01 |    1.503e-02 | n_prop= 1 | n_add= 1
+2026-08-27 15:08:50 | INFO | 016 |   8.623965e-01 |   6.173772e-02 |  -1.877521e-01 |    1.024e+00 |    5.934e+01 |    1.503e-02 | n_prop= 1 | n_add= 1
+2026-08-27 15:08:55 | INFO | 017 |  -1.238283e+00 |   1.659692e-01 |  -1.877521e-01 |    1.024e+00 |    5.934e+01 |    1.503e-02 | n_prop= 1 | n_add= 1
+2026-08-27 15:09:04 | INFO | 018 |   1.368242e+00 |  -1.604941e-02 |  -1.877521e-01 |    1.024e+00 |    5.934e+01 |    1.503e-02 | n_prop= 1 | n_add= 1
+2026-08-27 15:09:09 | INFO | 019 |  -3.171730e-01 |   4.063760e-02 |  -1.877521e-01 |    1.024e+00 |    5.934e+01 |    1.503e-02 | n_prop= 1 | n_add= 1

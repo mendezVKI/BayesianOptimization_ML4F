@@ -1,0 +1,71 @@
+{
+  "bounds": [
+    [
+      0.0,
+      5.0
+    ],
+    [
+      0.0,
+      3.0
+    ]
+  ],
+  "random_state": 7,
+  "ref_point": [
+    98.62859068679435,
+    41.54764532567681
+  ],
+  "mobo_cfg": {
+    "n_init": 10,
+    "n_iter": 25,
+    "init_sampling": "lhs",
+    "random_state": 7
+  },
+  "gp_cfg": {
+    "length_scales": 0.3,
+    "L_B_diag": 1.0,
+    "L_B_offdiag": 0.0,
+    "sigma_n": 0.02,
+    "jitter": 1e-10,
+    "optimize_hyperparams": true,
+    "hpo_every": 1,
+    "theta0": null,
+    "theta_bounds": null
+  },
+  "acq_cfg": {
+    "kind": "EHVI",
+    "n_mc": 512,
+    "mc_chunk": 256,
+    "maximize": false,
+    "ref_point": null,
+    "ref_margin": 0.1
+  },
+  "optim_cfg": {
+    "method": "refined",
+    "global_method": "random",
+    "optimizer": "L-BFGS-B",
+    "n_raw_samples": 1500,
+    "grid_n_per_dim": 20,
+    "n_restarts": 10,
+    "local_maxiter": 200
+  },
+  "save_cfg": {
+    "out_path": "C:\\Users\\lecomte\\OneDrive - vki.ac.be\\GitHub\\BayesianOptimization_ML4F\\examples\\_output\\mobo_binh_korn\\2026-08-27_15-10-55",
+    "create_timestamp": true,
+    "log_enabled": true,
+    "log_filename": "log.log",
+    "trace_enabled": true,
+    "trace_filename": "trace.npz",
+    "trace_flush_every": null,
+    "snapshot_enabled": false,
+    "snapshot_every": 1,
+    "snapshot_dirname": "snapshots",
+    "snapshot_flush_every": null,
+    "plt_state_enabled": true,
+    "plt_pareto_enabled": true,
+    "plt_conv_enabled": true,
+    "plt_hist_enabled": true,
+    "plt_all": true,
+    "plot_every": 5,
+    "dpi": 250
+  }
+}

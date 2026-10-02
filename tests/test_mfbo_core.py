@@ -1,5 +1,5 @@
 """
-Smoke / correctness tests for mfbo.core.
+Smoke / correctness tests for pyRAMBO.mfbo.core.
 
 Run with: pytest
 """
@@ -7,7 +7,7 @@ Run with: pytest
 import numpy as np
 import pytest
 
-import mfbo
+from pyRAMBO import mfbo
 
 
 def _f_high(x):
@@ -47,9 +47,9 @@ def test_multi_fidelity_bo_converges_1d():
 def test_incumbent_is_high_fidelity_only():
     """best_y/best_x must come from y_H alone, even though f_low can dip
     below the true high-fidelity minimum. Each state's y_best/x_best is the
-    incumbent computed BEFORE that iteration's proposal was appended (same
-    convention as sbo.core), so it must match min(y_H) restricted to the
-    high-fidelity points available at the start of that iteration."""
+    incumbent computed AFTER that iteration's evaluation was appended (same
+    convention as sbo.core), and y_best_acq the one computed BEFORE it (the one
+    the acquisition used); both come from the high-fidelity data only."""
     res = _run()
     assert res.best_y == pytest.approx(float(np.min(res.y_H)))
     best_idx = int(np.argmin(res.y_H))
@@ -58,7 +58,8 @@ def test_incumbent_is_high_fidelity_only():
     n_H_before = res.states[0].X_H.shape[0] - (1 if res.states[0].level_next == "H" else 0)
     for state in res.states:
         y_H_before = state.y_H[:n_H_before]
-        assert state.y_best == pytest.approx(float(np.min(y_H_before)))
+        assert state.y_best_acq == pytest.approx(float(np.min(y_H_before)))
+        assert state.y_best == pytest.approx(float(np.min(state.y_H)))   # incl. this iteration
         n_H_before = state.X_H.shape[0]  # "after" this iteration == "before" the next
 
     # the incumbent itself never worsens from one iteration to the next
@@ -144,7 +145,7 @@ def test_variance_reduction_matches_full_refit():
     (X_L,X_H) + (x at that level) appended -- the GP posterior variance does
     not depend on the observed y value, so any y works for the check."""
     bounds = [(-2.0, 2.0)]
-    gp_cfg = mfbo.GPConfig()
+    gp_cfg = mfbo.GPConfig(optimize_hyperparams=False)  # equal hyperparameters in both fits
     gp = mfbo.build_gp_model(gp_cfg, bounds)
 
     rng = np.random.default_rng(3)
@@ -178,6 +179,42 @@ def test_variance_reduction_matches_full_refit():
 
         expected_vr = float(var_before[0] - var_after[0])
         assert vr[0] == pytest.approx(expected_vr, abs=1e-6)
+
+
+def test_normalize_X_flag():
+    """normalize_X=False makes the GP see the raw inputs; True (default)
+    scales X to [0,1]^d. y is never normalized in mfbo (rho relates the
+    physical outputs of the two fidelities). Predictions are always physical."""
+    bounds = [(-2.0, 2.0)]
+    X_L = np.array([[-1.5], [-0.5], [0.5], [1.5]])
+    X_H = np.array([[-1.0], [1.0]])
+    y_L = np.array([_f_low(x) for x in X_L])
+    y_H = np.array([_f_high(x) for x in X_H])
+
+    preds = []
+    for nX in (True, False):
+        cfg = mfbo.GPConfig(normalize_X=nX, optimize_hyperparams=False,
+                            l_lf=0.5, l_delta=0.5)
+        gp = mfbo.fit_gp(mfbo.build_gp_model(cfg, bounds), X_L, y_L, X_H, y_H, cfg, it=0)
+        expected = (X_H - (-2.0)) / 4.0 if nX else X_H
+        np.testing.assert_allclose(gp.X_H_norm, expected)
+        np.testing.assert_allclose(gp.y_H, y_H)   # y untouched
+        mu, _ = mfbo.mf_gp_predict(X_H, gp, gp.X_L_norm, gp.X_H_norm, gp.alpha, gp.L)
+        np.testing.assert_allclose(mu, y_H, atol=0.2)   # interpolates, in physical units
+        preds.append(mu)
+
+
+def test_hpo_never_returns_non_finite():
+    """Default HPO bounds + non-finite guard: HPO on tiny/awkward data must
+    finish with finite hyperparameters instead of crashing in cholesky."""
+    bounds = [(-2.0, 2.0)]
+    X_L = np.array([[-1.0], [0.0], [1.0]])
+    X_H = np.array([[0.0], [0.01]])
+    y_L = np.array([1.0, 1.0, 1.0])
+    y_H = np.array([1.0, 1.0])
+    cfg = mfbo.GPConfig(optimize_hyperparams=True)
+    gp = mfbo.fit_gp(mfbo.build_gp_model(cfg, bounds), X_L, y_L, X_H, y_H, cfg, it=0)
+    assert np.all(np.isfinite(gp.theta)) and np.all(np.isfinite(gp.L))
 
 
 def test_n_init_H_must_be_at_least_one():

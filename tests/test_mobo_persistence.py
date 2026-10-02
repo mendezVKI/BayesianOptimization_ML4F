@@ -1,6 +1,6 @@
 """
 Tests for the two-tier (trace / snapshot) persistence layer in
-mobo.persistence.
+pyRAMBO.mobo.persistence.
 
 Run with: pytest
 """
@@ -11,8 +11,8 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
-import mobo
-from mobo import persistence
+from pyRAMBO import mobo
+from pyRAMBO.mobo import persistence
 
 
 def _f(x):
@@ -59,7 +59,8 @@ def test_trace_enabled_by_default_no_out_path():
 
 def test_trace_written_and_reloadable(tmp_path):
     res = _run(tmp_path)
-    trace_path = os.path.join(str(tmp_path), "trace.npz")
+    trace_path = os.path.join(res.out_path, "res", "trace.npz")
+    assert os.path.exists(os.path.join(res.out_path, "res", "trace.csv"))
     assert os.path.exists(trace_path)
 
     loaded = persistence.load_trace(trace_path)
@@ -79,6 +80,7 @@ def test_trace_fields_match_spec(tmp_path):
     arrays = trace.to_arrays()
     assert set(arrays) == {
         "it", "x_next", "y_next", "hypervolume", "n_pareto", "wall_time", "acq_value",
+        "length_scales", "B", "sigma_n",
     }
     assert "x_best" not in arrays
     assert "y_best" not in arrays
@@ -95,6 +97,23 @@ def test_trace_fields_match_spec(tmp_path):
     np.testing.assert_allclose(trace.hypervolume, [h["hypervolume"] for h in res.history])
     assert list(trace.n_pareto) == [h["n_pareto"] for h in res.history]
     assert all(w >= 0.0 for w in trace.wall_time)
+
+
+def test_trace_hypervolume_includes_current_iteration(tmp_path):
+    """Row `it` must be the hypervolume / front size INCLUDING the point
+    evaluated at iteration `it` (no one-iteration lag), and match the final
+    result. The state keeps the pre-update value the acquisition used."""
+    res = _run(tmp_path)
+    n_init = len(res.Y) - len(res.trace)
+    ref_z = -np.asarray(res.ref_point)          # default: minimize both objectives -> Z = -Y
+    for k, (hv, n_par) in enumerate(zip(res.trace.hypervolume, res.trace.n_pareto)):
+        Z = -res.Y[: n_init + k + 1]
+        mask = mobo.nondominated_mask(Z)
+        assert hv == pytest.approx(mobo.hypervolume(Z[mask], ref_z))
+        assert n_par == int(mask.sum())
+    assert res.trace.hypervolume[-1] == pytest.approx(res.hypervolume)
+    for st in res.states:
+        assert st.hypervolume_acq <= st.hypervolume + 1e-9
 
 
 def test_trace_flush_every_requires_out_path():
@@ -119,7 +138,7 @@ def test_snapshot_disabled_by_default_never_built(tmp_path):
         res = _run(tmp_path)
     spy.assert_not_called()
     assert res.snapshots is None
-    assert not os.path.isdir(os.path.join(str(tmp_path), "snapshots"))
+    assert not os.path.isdir(os.path.join(res.out_path, "res", "snapshots"))
 
 
 def test_snapshot_enabled_builds_one_per_iteration(tmp_path):
@@ -129,7 +148,7 @@ def test_snapshot_enabled_builds_one_per_iteration(tmp_path):
     assert res.snapshots is not None
     assert len(res.snapshots) == 10
 
-    snap_dir = os.path.join(str(tmp_path), "snapshots")
+    snap_dir = os.path.join(res.out_path, "res", "snapshots")
     assert len(os.listdir(snap_dir)) == 10
 
 
@@ -141,13 +160,13 @@ def test_snapshot_every_k_skips_iterations(tmp_path):
 def test_snapshot_flush_every_clears_memory_buffer(tmp_path):
     res = _run(tmp_path, snapshot_enabled=True, snapshot_every=1, snapshot_flush_every=3)
     assert len(res.snapshots) == 1
-    snap_dir = os.path.join(str(tmp_path), "snapshots")
+    snap_dir = os.path.join(res.out_path, "res", "snapshots")
     assert len(os.listdir(snap_dir)) == 10
 
 
 def test_meta_json_written(tmp_path):
     res = _run(tmp_path)
-    meta = persistence.load_meta(str(tmp_path))
+    meta = persistence.load_meta(os.path.join(res.out_path, "res"))
     assert meta is not None
     assert meta["mobo_cfg"]["n_iter"] == 10
     assert meta["bounds"] == [[-4.0, 4.0]]
@@ -162,7 +181,7 @@ def test_meta_json_written(tmp_path):
 def test_round_trip_posterior_matches_live_model(tmp_path):
     res = _run(tmp_path, snapshot_enabled=True, snapshot_every=1)
 
-    run = persistence.load_run(str(tmp_path))
+    run = persistence.load_run(res.out_path)
     assert run.available_iterations == list(range(10))
 
     Xgrid = np.linspace(-4.0, 4.0, 50).reshape(-1, 1)
@@ -183,7 +202,7 @@ def test_round_trip_preserves_the_output_covariance(tmp_path):
     """The coregionalization matrix is what makes this GP multi-output, so
     the joint per-point covariance must survive the round trip too."""
     res = _run(tmp_path, snapshot_enabled=True, snapshot_every=1)
-    run = persistence.load_run(str(tmp_path))
+    run = persistence.load_run(res.out_path)
 
     Xgrid = np.linspace(-4.0, 4.0, 20).reshape(-1, 1)
     _, cov_live = mobo.icm_gp_predict(Xgrid, res.states[7].gp, return_cov=True)
@@ -193,8 +212,8 @@ def test_round_trip_preserves_the_output_covariance(tmp_path):
 
 
 def test_posterior_missing_iteration_raises(tmp_path):
-    _run(tmp_path, snapshot_enabled=True, snapshot_every=5)  # its 0 and 5 only
-    run = persistence.load_run(str(tmp_path))
+    res = _run(tmp_path, snapshot_enabled=True, snapshot_every=5)  # its 0 and 5 only
+    run = persistence.load_run(res.out_path)
     with pytest.raises(KeyError):
         run.posterior(1)
 

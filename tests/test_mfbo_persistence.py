@@ -1,6 +1,6 @@
 """
 Tests for the two-tier (trace / snapshot) persistence layer in
-mfbo.persistence.
+pyRAMBO.mfbo.persistence.
 
 Run with: pytest
 """
@@ -11,8 +11,8 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
-import mfbo
-from mfbo import persistence
+from pyRAMBO import mfbo
+from pyRAMBO.mfbo import persistence
 
 
 def _f_high(x):
@@ -67,8 +67,9 @@ def test_trace_enabled_by_default_no_out_path():
 
 def test_trace_written_and_reloadable(tmp_path):
     res = _run(tmp_path)
-    trace_path = os.path.join(str(tmp_path), "trace.npz")
+    trace_path = os.path.join(res.out_path, "res", "trace.npz")
     assert os.path.exists(trace_path)
+    assert os.path.exists(os.path.join(res.out_path, "res", "trace.csv"))
 
     loaded = persistence.load_trace(trace_path)
     assert loaded.it == res.trace.it
@@ -94,12 +95,37 @@ def test_trace_fields_match_spec(tmp_path):
     y_best = np.asarray(trace.y_best)
     assert np.all(np.diff(y_best) <= 1e-12)  # incumbent (high-fidelity) never worsens
 
+    # GP hyperparameters recorded at every iteration
+    for field_name in ("l_lf", "sigma_lf", "l_delta", "sigma_delta", "rho", "sigma_L", "sigma_H"):
+        assert len(getattr(trace, field_name)) == n
+
     cum_cost = np.asarray(trace.cumulative_cost)
     assert np.all(np.diff(cum_cost) > 0.0)  # cost strictly accumulates every iteration
     expected_total = sum(
         mfbo.FidelityConfig(cost_low=1.0, cost_high=5.0).cost(lvl) for lvl in trace.level_next
     )
     assert cum_cost[-1] == pytest.approx(expected_total)
+
+
+def test_trace_best_includes_current_iteration(tmp_path):
+    """Row `it` must be the running high-fidelity minimum INCLUDING the point
+    evaluated at iteration `it` (no one-iteration lag), and match the final best."""
+    res = _run(tmp_path)
+    trace = res.trace
+    n_init_H = 2
+    y_H0 = res.y_H[:n_init_H]
+    y_best = np.asarray(trace.y_best)
+    expected, cur = [], float(y_H0.min())
+    for lvl, y in zip(trace.level_next, trace.y_next):
+        if lvl == "H":
+            cur = min(cur, y)
+        expected.append(cur)
+    np.testing.assert_allclose(y_best, expected)
+    assert y_best[-1] == pytest.approx(res.best_y)
+    # State keeps the pre-update incumbent that the acquisition used.
+    for st, yb in zip(res.states, y_best):
+        assert st.y_best == pytest.approx(yb)
+        assert st.y_best_acq >= st.y_best
 
 
 # ---------------------------------------------------------------------
@@ -111,7 +137,7 @@ def test_snapshot_disabled_by_default_never_built(tmp_path):
         res = _run(tmp_path)
     spy.assert_not_called()
     assert res.snapshots is None
-    assert not os.path.isdir(os.path.join(str(tmp_path), "snapshots"))
+    assert not os.path.isdir(os.path.join(res.out_path, "res", "snapshots"))
 
 
 def test_snapshot_enabled_builds_one_per_iteration(tmp_path):
@@ -121,7 +147,7 @@ def test_snapshot_enabled_builds_one_per_iteration(tmp_path):
     assert res.snapshots is not None
     assert len(res.snapshots) == 10
 
-    snap_dir = os.path.join(str(tmp_path), "snapshots")
+    snap_dir = os.path.join(res.out_path, "res", "snapshots")
     files = sorted(os.listdir(snap_dir))
     assert len(files) == 10
 
@@ -134,13 +160,13 @@ def test_snapshot_every_k_skips_iterations(tmp_path):
 def test_snapshot_flush_every_clears_memory_buffer(tmp_path):
     res = _run(tmp_path, snapshot_enabled=True, snapshot_every=1, snapshot_flush_every=3)
     assert len(res.snapshots) == 1
-    snap_dir = os.path.join(str(tmp_path), "snapshots")
+    snap_dir = os.path.join(res.out_path, "res", "snapshots")
     assert len(os.listdir(snap_dir)) == 10
 
 
 def test_meta_json_written(tmp_path):
-    _run(tmp_path)
-    meta = persistence.load_meta(str(tmp_path))
+    res = _run(tmp_path)
+    meta = persistence.load_meta(os.path.join(res.out_path, "res"))
     assert meta is not None
     assert meta["mfbo_cfg"]["n_iter"] == 10
     assert meta["bounds"] == [[-2.0, 2.0]]
@@ -153,7 +179,7 @@ def test_meta_json_written(tmp_path):
 def test_round_trip_posterior_matches_live_model(tmp_path):
     res = _run(tmp_path, snapshot_enabled=True, snapshot_every=1)
 
-    run = persistence.load_run(str(tmp_path))
+    run = persistence.load_run(res.out_path)
     assert run.available_iterations == list(range(10))
 
     Xgrid = np.linspace(-2.0, 2.0, 50).reshape(-1, 1)
@@ -172,8 +198,8 @@ def test_round_trip_posterior_matches_live_model(tmp_path):
 
 
 def test_posterior_missing_iteration_raises(tmp_path):
-    _run(tmp_path, snapshot_enabled=True, snapshot_every=5)  # its 0 and 5 only
-    run = persistence.load_run(str(tmp_path))
+    res = _run(tmp_path, snapshot_enabled=True, snapshot_every=5)  # its 0 and 5 only
+    run = persistence.load_run(res.out_path)
     with pytest.raises(KeyError):
         run.posterior(1)
 

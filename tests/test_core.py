@@ -1,5 +1,5 @@
 """
-Smoke / correctness tests for bo_ml4f.core.
+Smoke / correctness tests for pyRAMBO.sbo.core.
 
 Run with: pytest
 """
@@ -7,7 +7,7 @@ Run with: pytest
 import numpy as np
 import pytest
 
-import bo_ml4f as bo
+from pyRAMBO import sbo as bo
 
 
 def _quadratic(x):
@@ -60,7 +60,8 @@ def test_rank1_update_matches_full_refit():
     must reproduce a full refit to numerical precision."""
     rng = np.random.default_rng(0)
     bounds = [(-2.0, 2.0), (-1.0, 1.0)]
-    gp_cfg = bo.GPConfig(rank_one=True, rank_one_threshold=0)
+    # fixed hyperparameters: with HPO the factors are refit, so rank-one would never be used
+    gp_cfg = bo.GPConfig(rank_one=True, rank_one_threshold=0, optimize_hyperparams=False)
 
     def sample(n):
         X = np.column_stack([
@@ -85,6 +86,27 @@ def test_rank1_update_matches_full_refit():
 
     assert np.max(np.abs(gp_rank1.L - gp_ref.L)) < 1e-8
     assert np.max(np.abs(gp_rank1.alpha - gp_ref.alpha)) < 1e-8
+
+
+def test_normalization_flags():
+    """normalize_X / normalize_y = False make the GP see the raw data; True
+    (default) scales X to [0,1] and standardizes y. Predictions are always
+    in physical units."""
+    bounds = [(-2.0, 2.0), (-1.0, 1.0)]
+    rng = np.random.default_rng(0)
+    X = np.column_stack([rng.uniform(-2, 2, 6), rng.uniform(-1, 1, 6)])
+    y = 100.0 + 5.0 * np.sin(X[:, 0]) + X[:, 1]
+
+    for nX, ny in [(True, True), (False, False), (True, False), (False, True)]:
+        cfg = bo.GPConfig(normalize_X=nX, normalize_y=ny, optimize_hyperparams=False, sigma_y=1e-3)
+        gp = bo.fit_gp(bo.build_gp_model(cfg, bounds), X, y, cfg, it=0)
+        np.testing.assert_allclose(gp.Xs_norm, (X - [-2, -1]) / [4, 2] if nX else X)
+        if ny:
+            assert abs(gp.ys_norm.mean()) < 1e-9 and abs(gp.ys_norm.std() - 1) < 1e-9
+        else:
+            np.testing.assert_allclose(gp.ys_norm, y)
+        mu, _ = bo.gp_predict(X, gp.Xs, gp.alpha, gp.L, l_c=gp.l_c, sigma_f=gp.sigma_f, gp=gp)
+        np.testing.assert_allclose(mu, y, atol=0.5)   # interpolates, in physical units
 
 
 if __name__ == "__main__":

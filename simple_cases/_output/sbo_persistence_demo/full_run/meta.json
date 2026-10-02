@@ -1,0 +1,64 @@
+{
+  "bounds": [
+    [
+      -2.0,
+      2.0
+    ]
+  ],
+  "random_state": 0,
+  "bo_cfg": {
+    "n_init": 4,
+    "n_iter": 12,
+    "init_sampling": "lhs",
+    "random_state": 0
+  },
+  "gp_cfg": {
+    "l_c": 0.2,
+    "sigma_f": 1.0,
+    "sigma_y": 0.1,
+    "jitter": 1e-10,
+    "optimize_hyperparams": false,
+    "hpo_every": 1,
+    "theta0_log": null,
+    "theta_bounds_log": null,
+    "rank_one": true,
+    "rank_one_threshold": 1000
+  },
+  "acq_cfg": {
+    "kind": "EI",
+    "xi": 0.01,
+    "kappa": 2.0,
+    "maximize": false
+  },
+  "optim_cfg": {
+    "method": "random",
+    "global_method": "random",
+    "optimizer": "L-BFGS-B",
+    "n_raw_samples": 300,
+    "grid_n_per_dim": 20,
+    "n_restarts": 10,
+    "local_maxiter": 200,
+    "n_candidates": 1,
+    "batch_distance_scale": 0.05
+  },
+  "save_cfg": {
+    "out_path": "C:\\Users\\lecomte\\OneDrive - vki.ac.be\\GitHub\\BayesianOptimization_ML4F\\examples\\_output\\sbo_persistence_demo\\full_run",
+    "create_timestamp": false,
+    "log_enabled": false,
+    "log_filename": "log.log",
+    "trace_enabled": true,
+    "trace_filename": "trace.npz",
+    "trace_flush_every": null,
+    "snapshot_enabled": true,
+    "snapshot_every": 1,
+    "snapshot_dirname": "snapshots",
+    "snapshot_flush_every": 5,
+    "plt_state_enabled": false,
+    "plt_conv_enabled": false,
+    "plt_hist_enabled": false,
+    "plt_MLE_conv_enbable": false,
+    "plt_all": false,
+    "plot_every": 1,
+    "dpi": 250
+  }
+}

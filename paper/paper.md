@@ -1,5 +1,5 @@
 ---
-title: 'bo_ml4f: A lightweight Bayesian Optimization framework with gradient-refined and batch acquisition'
+title: 'pyRAMBO: A lightweight Bayesian Optimization framework with gradient-refined and batch acquisition'
 tags:
   - Python
   - Bayesian optimization
@@ -22,12 +22,12 @@ bibliography: paper.bib
 
 # Summary
 
-`bo_ml4f` is a compact, dependency-light Bayesian Optimization (BO) library
+`pyRAMBO` is a compact, dependency-light Bayesian Optimization (BO) library
 built around a Gaussian Process (GP) surrogate with an exact rank-1 Cholesky
 update scheme, three standard acquisition functions (Expected Improvement,
 Probability of Improvement, Upper Confidence Bound), and optional
 hyperparameter optimization by marginal-likelihood maximization. Beyond the
-standard single-point BO loop, `bo_ml4f` supports two extensions relevant to
+standard single-point BO loop, `pyRAMBO` supports two extensions relevant to
 expensive, simulation-driven objectives common in fluid mechanics and
 machine-learning-for-fluids workflows: (i) diverse batch acquisition, which
 proposes several candidate evaluations per iteration to better exploit
@@ -38,7 +38,7 @@ projected ADAM before evaluation.
 
 # Statement of need
 
-TODO: describe the gap `bo_ml4f` fills relative to existing BO packages
+TODO: describe the gap `pyRAMBO` fills relative to existing BO packages
 (e.g. BoTorch, GPyOpt, scikit-optimize) for the intended audience --
 researchers in the ML4F group and, more broadly, users who have access to
 gradients of expensive black-box objectives (e.g. via adjoint CFD solvers)
@@ -47,23 +47,30 @@ or the other.
 
 # Software design
 
-The package is organized into three modules under `src/bo_ml4f`:
+`pyRAMBO` is organized into three independent subpackages under
+`src/pyRAMBO`, one per flavour of BO: `pyRAMBO.sbo` (single-fidelity,
+single-objective), `pyRAMBO.mfbo` (multi-fidelity, AR1 model of Kennedy and
+O'Hagan) and `pyRAMBO.mobo` (multi-objective, intrinsic coregionalization
+GP with Monte-Carlo expected hypervolume improvement). Each subpackage has
+the same four modules:
 
-- `core.py`: configuration dataclasses, the GP model (kernel, fit, predict,
-  rank-1 Cholesky extension), acquisition functions and their optimizers
-  (including batch acquisition and ADAM-based gradient refinement), and the
-  main `bayesian_optimization` driver.
-- `saving.py`: experiment folder management, HDF5 checkpointing of each BO
-  iteration, and run logging.
+- `core.py`: configuration dataclasses, the GP model (kernel, fit, predict),
+  acquisition functions and their optimizers, and the main BO driver. In
+  `pyRAMBO.sbo` this also includes the rank-1 Cholesky extension, batch
+  acquisition and ADAM-based gradient refinement.
+- `saving.py`: experiment folder management and run logging.
+- `persistence.py`: two-tier run persistence (a lightweight per-iteration
+  trace, plus opt-in snapshots sufficient to rebuild the GP exactly), stored
+  as NumPy/JSON files.
 - `plotting.py`: all matplotlib-based visualization, imported lazily so
   that headless/HPC usage does not require a configured matplotlib backend.
 
 Runnable tutorials against standard benchmark functions (1D sinusoidal,
-Branin, Rosenbrock) are provided in `examples/`, and correctness is checked
-in `tests/`, including a numerical check that the rank-1 Cholesky update
-(generalized to accept more than one new point per BO iteration, as batch
-acquisition and gradient refinement can produce) exactly reproduces a full
-Cholesky refit.
+Branin, Rosenbrock, Forrester, Schaffer, Binh-Korn) are provided in
+`examples/`, and correctness is checked in `tests/`, including a numerical
+check that the rank-1 Cholesky update (generalized to accept more than one
+new point per BO iteration, as batch acquisition and gradient refinement can
+produce) exactly reproduces a full Cholesky refit.
 
 # Acknowledgements
 

@@ -1,0 +1,31 @@
+2026-08-27 15:23:33 | INFO | Bounds: [(-4.0, 4.0)]
+2026-08-27 15:23:33 | INFO | MOBOConfig: MOBOConfig(n_init=6, n_iter=20, init_sampling='lhs', random_state=1234)
+2026-08-27 15:23:33 | INFO | GPConfig: GPConfig(length_scales=0.2, L_B_diag=1.0, L_B_offdiag=0.0, sigma_n=0.02, jitter=1e-10, optimize_hyperparams=True, hpo_every=1, theta0=None, theta_bounds=None)
+2026-08-27 15:23:33 | INFO | AcqConfig: AcqConfig(kind='EHVI', n_mc=512, mc_chunk=256, maximize=False, ref_point=None, ref_margin=0.1)
+2026-08-27 15:23:33 | INFO | OptimConfig: OptimConfig(method='refined', global_method='random', optimizer='L-BFGS-B', n_raw_samples=1000, grid_n_per_dim=20, n_restarts=10, local_maxiter=200)
+2026-08-27 15:23:33 | INFO | SaveConfig: SaveConfig(out_path='C:\\Users\\lecomte\\OneDrive - vki.ac.be\\GitHub\\BayesianOptimization_ML4F\\examples\\_output\\mobo_schaffer\\2026-08-27_15-23-33', create_timestamp=True, log_enabled=True, log_filename='log.log', trace_enabled=True, trace_filename='trace.npz', trace_flush_every=None, snapshot_enabled=False, snapshot_every=1, snapshot_dirname='snapshots', snapshot_flush_every=None, plt_state_enabled=True, plt_pareto_enabled=True, plt_conv_enabled=True, plt_hist_enabled=True, plt_all=True, plot_every=1, dpi=250)
+2026-08-27 15:23:33 | INFO | Random seed: 1234
+2026-08-27 15:23:33 | INFO | Objective signs (+1 maximize / -1 minimize): [-1. -1.]
+2026-08-27 15:23:33 | INFO | Reference point (physical units): [14.97102313 33.49046963]
+2026-08-27 15:23:33 | INFO | it  |    x_next     |     y_next (all objectives)    |  hypervolume  | n_par |   l_c[0]   |    acq
+2026-08-27 15:23:33 | INFO | ------------------------------------------------------------------------------------------------------------------------
+2026-08-27 15:23:37 | INFO | 000 |   9.387972e-01 |  8.813402e-01  1.126151e+00 |  4.876255e+02 |     2 |  1.690e+00 |  7.145e+00
+2026-08-27 15:23:39 | INFO | 001 |   1.361347e+00 |  1.853266e+00  4.078775e-01 |  4.947696e+02 |     3 |  1.690e+00 |  1.107e+00
+2026-08-27 15:23:40 | INFO | 002 |   5.155226e-01 |  2.657635e-01  2.203673e+00 |  4.958769e+02 |     4 |  1.690e+00 |  1.086e+00
+2026-08-27 15:23:42 | INFO | 003 |   1.994922e+00 |  3.979714e+00  2.578518e-05 |  4.969632e+02 |     5 |  1.690e+00 |  2.717e-01
+2026-08-27 15:23:43 | INFO | 004 |   1.149641e+00 |  1.321674e+00  7.231107e-01 |  4.972354e+02 |     6 |  1.690e+00 |  2.143e-01
+2026-08-27 15:23:45 | INFO | 005 |   1.582995e+00 |  2.505874e+00  1.738929e-01 |  4.974497e+02 |     7 |  1.690e+00 |  2.080e-01
+2026-08-27 15:23:46 | INFO | 006 |   7.369794e-01 |  5.431386e-01  1.595221e+00 |  4.976577e+02 |     8 |  1.690e+00 |  2.058e-01
+2026-08-27 15:23:48 | INFO | 007 |   2.927137e-01 |  8.568129e-02  2.914827e+00 |  4.978635e+02 |     9 |  1.690e+00 |  1.897e-01
+2026-08-27 15:23:49 | INFO | 008 |   1.044014e+00 |  1.089964e+00  9.139100e-01 |  4.980532e+02 |    10 |  1.690e+00 |  4.918e-02
+2026-08-27 15:23:51 | INFO | 009 |   6.287741e-01 |  3.953568e-01  1.880261e+00 |  4.981024e+02 |    11 |  1.690e+00 |  4.779e-02
+2026-08-27 15:23:52 | INFO | 010 |   1.255424e+00 |  1.576089e+00  5.543937e-01 |  4.981502e+02 |    12 |  1.690e+00 |  4.677e-02
+2026-08-27 15:23:54 | INFO | 011 |   8.353414e-01 |  6.977953e-01  1.356430e+00 |  4.981970e+02 |    13 |  1.690e+00 |  4.383e-02
+2026-08-27 15:23:56 | INFO | 012 |   1.469389e+00 |  2.159105e+00  2.815477e-01 |  4.982408e+02 |    14 |  1.690e+00 |  4.381e-02
+2026-08-27 15:23:57 | INFO | 013 |   1.703071e+00 |  2.900451e+00  8.816674e-02 |  4.982846e+02 |    15 |  1.690e+00 |  4.239e-02
+2026-08-27 15:23:59 | INFO | 014 |   4.073522e-01 |  1.659359e-01  2.536527e+00 |  4.983270e+02 |    16 |  1.690e+00 |  3.775e-02
+2026-08-27 15:24:00 | INFO | 015 |   1.699652e-01 |  2.888817e-02  3.349027e+00 |  4.983647e+02 |    17 |  1.690e+00 |  3.516e-02
+2026-08-27 15:24:02 | INFO | 016 |   9.919574e-01 |  9.839794e-01  1.016150e+00 |  4.983999e+02 |    18 |  1.690e+00 |  1.166e-02
+2026-08-27 15:24:03 | INFO | 017 |   1.097576e+00 |  1.204672e+00  8.143698e-01 |  4.984116e+02 |    19 |  1.690e+00 |  1.165e-02
+2026-08-27 15:24:05 | INFO | 018 |   1.206800e+00 |  1.456367e+00  6.291656e-01 |  4.984232e+02 |    20 |  1.690e+00 |  1.125e-02
+2026-08-27 15:24:07 | INFO | 019 |   6.809934e-01 |  4.637520e-01  1.739778e+00 |  4.984345e+02 |    21 |  1.690e+00 |  1.115e-02

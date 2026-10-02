@@ -1,5 +1,5 @@
 """
-Smoke / correctness tests for mobo.core.
+Smoke / correctness tests for pyRAMBO.mobo.core.
 
 Run with: pytest
 """
@@ -7,7 +7,7 @@ Run with: pytest
 import numpy as np
 import pytest
 
-import mobo
+from pyRAMBO import mobo
 
 
 def _f(x):
@@ -125,7 +125,8 @@ def test_icm_gp_covariance_diagonal_matches_variance():
     X = rng.uniform(size=(7, 2))
     Y = np.column_stack([X[:, 0] + X[:, 1], X[:, 0] - 2 * X[:, 1]])
 
-    gp_cfg = mobo.GPConfig(length_scales=0.4, L_B_offdiag=-0.5)
+    # fixed hyperparameters: exactly linear data would drive HPO to a degenerate fit
+    gp_cfg = mobo.GPConfig(length_scales=0.4, L_B_offdiag=-0.5, optimize_hyperparams=False)
     gp = mobo.fit_gp(mobo.build_gp_model(gp_cfg, bounds, 2), X, Y, gp_cfg, it=0)
 
     Xt = rng.uniform(size=(5, 2))
@@ -320,6 +321,28 @@ def test_mobo_finds_the_pareto_set():
     assert np.all(res.pareto_X[:, 0] > -0.1)
     assert np.all(res.pareto_X[:, 0] < 2.1)
     assert np.ptp(res.pareto_X[:, 0]) > 1.0
+
+
+def test_normalization_flags():
+    """normalize_X / normalize_y = False make the GP see the raw data; True
+    (default) scales X to [0,1]^d and standardizes each objective. Predictions
+    are always in physical units."""
+    bounds = [(-2.0, 2.0), (-1.0, 1.0)]
+    rng = np.random.default_rng(0)
+    X = np.column_stack([rng.uniform(-2, 2, 6), rng.uniform(-1, 1, 6)])
+    Y = np.column_stack([100.0 + 5.0 * np.sin(X[:, 0]), -50.0 + X[:, 1]])
+
+    for nX, ny in [(True, True), (False, False), (True, False), (False, True)]:
+        cfg = mobo.GPConfig(normalize_X=nX, normalize_y=ny, optimize_hyperparams=False, sigma_n=1e-3)
+        gp = mobo.fit_gp(mobo.build_gp_model(cfg, bounds, 2), X, Y, cfg, it=0)
+        np.testing.assert_allclose(gp.X_norm, (X - [-2, -1]) / [4, 2] if nX else X)
+        if ny:
+            np.testing.assert_allclose(gp.Y_norm.mean(axis=0), 0.0, atol=1e-9)
+            np.testing.assert_allclose(gp.Y_norm.std(axis=0), 1.0, atol=1e-9)
+        else:
+            np.testing.assert_allclose(gp.Y_norm, Y)
+        mu, _ = mobo.icm_gp_predict(X, gp, return_cov=False)
+        np.testing.assert_allclose(mu, Y, atol=0.5)   # interpolates, in physical units
 
 
 def test_hypervolume_is_monotonically_non_decreasing():

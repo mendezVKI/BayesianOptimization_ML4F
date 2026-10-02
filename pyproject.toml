@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pyBO"
+name = "pyRAMBO"
 version = "0.3.0"
 description = "A Bayesian Optimization framework for the Machine Learning for Fluid Systems group (ML4F)"
 readme = "README.md"
@@ -34,8 +34,8 @@ Homepage = "https://www.mendezma.com/"
 Repository = "https://github.com/mendezVKI/BayesianOptimization_ML4F"
 
 [tool.setuptools]
-package-dir = { "sbo" = "src/sbo", "mfbo" = "src/mfbo", "mobo" = "src/mobo" }
-packages = ["sbo", "mfbo", "mobo"]
+package-dir = { "" = "src" }
+packages = ["pyRAMBO", "pyRAMBO.sbo", "pyRAMBO.mfbo", "pyRAMBO.mobo"]
 
 [tool.pytest.ini_options]
 # Make `pytest` work from a bare checkout, with no install step and no
@@ -43,7 +43,5 @@ packages = ["sbo", "mfbo", "mobo"]
 # the tests always exercise the working tree rather than whatever version
 # happens to be installed in the environment.
 pythonpath = ["src"]
-# Collect only tests/: without this, pytest walks the whole tree, including
-# examples/, whose sbo/, mfbo/ and mobo/ folders share their names with the
-# packages under src/.
+# Collect only tests/, never the example scripts or legacy/.
 testpaths = ["tests"]
