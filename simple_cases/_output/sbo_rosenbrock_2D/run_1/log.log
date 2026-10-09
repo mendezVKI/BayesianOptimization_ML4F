@@ -1,0 +1,2 @@
+2026-10-02 08:49:18 | INFO | BO run started: 20 iterations. Configuration in meta.json.
+2026-10-02 08:51:33 | INFO | Finished: 70 evaluations | best_y = -1.877521e-01 | best_x = [0.5176874161281915, 0.42485087327541393] | total time = 134.98 s (0:02:15)

@@ -116,12 +116,18 @@ class BOConfig:
 class SaveConfig:
     # --- Saving related parameters
     # A run always lands in its own subfolder of out_path (never directly in
-    # out_path, and never nesting into a previous run's folder): named by
-    # timestamp if create_timestamp=True (default), else auto-incrementing
-    # run_<n>. That subfolder holds log.log, plots/ and res/ (see
-    # persistence.write_meta / persistence.load_run and plotting.py).
+    # out_path, and never nesting into a previous run's folder), named by
+    # run_naming:
+    #   "timestamp"  2026-10-02_14-31-07 (default)
+    #   "run_id"     run_1, run_2, ... (next free number)
+    #   "params"     ninit_<n_init>_niter_<n_iter>_xi_<xi>
+    #   "custom"     run_name (a plain folder name)
+    # An existing folder is never overwritten (FileExistsError). That
+    # subfolder holds log.log, plots/ and res/ (see persistence.write_meta /
+    # persistence.load_run and plotting.py).
     out_path: Optional[str] = None
-    create_timestamp: bool = True
+    run_naming: str = "timestamp"
+    run_name: Optional[str] = None      # only used with run_naming="custom"
     # Logging (text): run start/end only -- config is in res/meta.json,
     # per-iteration values are in the Tier 1 trace (res/trace.npz|csv).
     log_enabled: bool = True
@@ -1034,7 +1040,9 @@ def bayesian_optimization(
     # this function (plotting, persistence) sees the resolved path, while
     # the SaveConfig object the caller passed in is left untouched and can
     # be reused across multiple bayesian_optimization() calls.
-    experiment_path, save_cfg = setup_experiment_folder(save_cfg)
+    experiment_path, save_cfg = setup_experiment_folder(
+        save_cfg, name_params=dict(ninit=bo_cfg.n_init, niter=bo_cfg.n_iter, xi=acq_cfg.xi)
+    )
 
     # Define the main output path given the time and hour
     setup_plotting_toggle(save_cfg)

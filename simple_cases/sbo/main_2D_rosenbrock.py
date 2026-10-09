@@ -15,17 +15,17 @@ from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Make the `examples` package importable, so this file runs both as
-#     python -m examples.sbo.main_2D_rosenbrock
+# Make the `simple_cases` package importable, so this file runs both as
+#     python -m simple_cases.sbo.main_2D_rosenbrock
 # and directly (Spyder / VS Code "Run file"), from any working directory.
-# ONLY the repository root is added -- never examples/ itself -- so shared
-# code is reached as `examples.benchmarks`, never as a bare `benchmarks`.
-# Importing `examples` is what puts src/ on the path, so it has to come
-# before the library import below. See examples/README.md.
+# ONLY the repository root is added -- never simple_cases/ itself -- so shared
+# code is reached as `simple_cases.benchmarks`, never as a bare `benchmarks`.
+# Importing `simple_cases` is what puts src/ on the path, so it has to come
+# before the library import below. See simple_cases/README.md.
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from examples import _common  # noqa: E402
-from examples.benchmarks import rosenbrock_2d  # noqa: E402
+from simple_cases import _common  # noqa: E402
+from simple_cases.benchmarks import rosenbrock_2d  # noqa: E402
 from pyRAMBO import sbo as bo  # noqa: E402
 
 _common.use_paper_style()
@@ -74,7 +74,7 @@ ax.set_aspect('equal', adjustable='box')
 # Save the fig
 figname = os.path.join(OUT_PATH, "True function.png")
 plt.savefig(figname, dpi=300, bbox_inches="tight")
-plt.show()
+plt.close()
 
 
 #%% Run 
@@ -89,38 +89,44 @@ xi = 0.01
 f = lambda x: rosenbrock_2d(x, noise_level=noise_level, rng=rng)
 f_true = lambda x: rosenbrock_2d(x, noise_level=0, rng=rng)
 
-# -------- Run 
+# -------- Run
 start_time = time.time()
+
+gp_cfg = bo.GPConfig(
+    optimize_hyperparams=True,
+    hpo_every=10,
+)
+
+save_cfg = bo.SaveConfig(
+    out_path = OUT_PATH,
+    run_naming="run_id",
+    plt_all=True,
+)
 
 res = bo.bayesian_optimization(
     f=f,
     f_true=f_true,
     bounds=bounds,
     bo_cfg=bo.BOConfig(
-        n_init=n_init, 
-        n_iter=n_iter, 
+        n_init=n_init,
+        n_iter=n_iter,
         random_state=1234
         ),
-    gp_cfg=bo.GPConfig(
-        optimize_hyperparams=True,
-        hpo_every=10,
-        rank_one=True
-        ),
+    gp_cfg=gp_cfg,
     acq_cfg=bo.AcqConfig(xi=xi),
-    optim_cfg=bo.OptimConfig(
-        method = "random",
-        global_method="refine"
-        ),
-    save_cfg=bo.SaveConfig(
-        out_path = OUT_PATH,
-        plt_all=True,
-        plot_every=1
-        )
+    optim_cfg=bo.OptimConfig(method = "random"),
+    save_cfg=save_cfg
 )
 
-rank_run_time = time.time() - start_time
+run_time = time.time() - start_time
 print("------------------------------------")
-print("Home-Made BO; With Rank-One Update")
-print(f"  > Elapsed time = {rank_run_time:.4f} s")
+print("Home-Made BO")
+print(f"  > Elapsed time = {run_time:.4f} s")
 print(f"  > Best x = {res.best_x[0]:.4f} - Best y {res.best_y:.4f}")
 
+
+
+#%% Create a GIF (only if plt_state_enabled = True or plt_all = True)
+# Assembles <run folder>/plots/GIF/it_*.png into <run folder>/plots/evolution.gif
+gif_path = bo.make_gif(res.out_path, fps=2)
+print(f"  > GIF saved to {gif_path}")

@@ -30,7 +30,7 @@ def _run(tmp_path, **save_kwargs):
         optim_cfg=bo.OptimConfig(n_raw_samples=200),
         save_cfg=bo.SaveConfig(
             out_path=str(tmp_path),
-            create_timestamp=False,
+            run_naming="run_id",
             log_enabled=False,
             **save_kwargs,
         ),
@@ -147,7 +147,7 @@ def test_meta_json_written(tmp_path):
 
 
 def test_run_folder_created_under_out_path(tmp_path):
-    """create_timestamp=False still gets its own run_<n> subfolder -- never
+    """run_naming="run_id" gets its own run_<n> subfolder -- never
     written directly into out_path, never nesting into a previous run."""
     res1 = _run(tmp_path)
     res2 = _run(tmp_path)

@@ -1,0 +1,23 @@
+{
+  "settings": {
+    "n_init": 50,
+    "n_iter": 1450,
+    "n_restarts": 3,
+    "hpo_every": 25,
+    "rank_one_threshold": 1000,
+    "objective": "tracking",
+    "n_segments": 3,
+    "wavenumbers": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "both_phases": true,
+    "alpha": 200.0
+  },
+  "seeds": [
+    1826701614
+  ],
+  "baseline_cost": 100.0
+}

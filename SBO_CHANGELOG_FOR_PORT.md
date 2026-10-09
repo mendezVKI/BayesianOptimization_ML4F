@@ -160,6 +160,16 @@ The final summary line of `log.log` now carries the wall time of the whole run (
 - mobo: also has `plots/GIF_pareto/` (objective-space frames from `plt_pareto`): call `make_gif(run, frames_subdir="GIF_pareto", out_name="pareto_evolution.gif")` (the function already supports it). mfbo: same as sbo (`plots/GIF/`).
 - Tests (`tests/test_plotting.py`): `test_make_gif_assembles_the_saved_frames` (frame count == iterations, loops forever, uniform size), `test_make_gif_without_frames_raises_a_clear_error`.
 
+### 16. Run-folder naming: `SaveConfig.run_naming` (replaces `create_timestamp`)  `[ ] mobo  [ ] mfbo`  🆕
+`create_timestamp: bool` is **removed** (no alias). New fields: `run_naming: str = "timestamp"` and `run_name: Optional[str] = None`.
+- `"timestamp"` -> `2026-10-02_14-31-07` (default, = old `create_timestamp=True`); `"run_id"` -> `run_<n>` (= old `create_timestamp=False`); `"params"` -> `ninit_<n_init>_niter_<n_iter>_xi_<xi>` (e.g. `ninit_5_niter_10_xi_0.01`); `"custom"` -> `run_name` (must be a plain folder name: no `/`, `\`, `.`, `..`, not empty).
+- An existing folder is never overwritten: `os.makedirs(exist_ok=False)` is wrapped to raise a `FileExistsError` that names the folder and the naming mode. `"run_id"` cannot collide. `"timestamp"` still collides if two runs start within the same second (known, see SBO_JOSS_REVIEW.md).
+- saving.py: `RUN_NAMINGS`, `_params_run_name(name_params)` (floats formatted with `:g`, unsafe characters -> `-`), `_custom_run_name(run_name)`; `setup_experiment_folder(save_cfg, name_params=None)` dispatches on `run_naming`, so saving.py stays decoupled from the other configs. `from typing import Dict`.
+- core.py: `SaveConfig` fields + comment; driver calls `setup_experiment_folder(save_cfg, name_params=dict(ninit=bo_cfg.n_init, niter=bo_cfg.n_iter, xi=acq_cfg.xi))`.
+- mfbo: name parts should be `ninit_L`, `ninit_H`, `niter` and `xi` (and the fidelity costs if wanted); mobo: `ninit`, `niter` (+ the reference point or `xi` equivalent). Pick the parts, keep `_params_run_name` as is.
+- Migration of callers: `create_timestamp=False` -> `run_naming="run_id"` (examples, tests). The 4 example scripts and the persistence demo stay on `"run_id"` so re-running them never errors.
+- Tests: new `tests/test_run_naming.py` (default timestamp format, run_id increments, params name, no overwrite, custom name, invalid custom names, unknown mode, params without parts, caller's SaveConfig not mutated).
+
 ## Change log (append below, newest last)
 - 2026-09-29 — items 1–6 above (folder layout, saving.py rewrite, trace.csv + GP hypers in trace, `res/` and `plots/` split, `BOResult.out_path`, `log.log` metadata-only, `optimize_hyperparams=True` default).
 - 2026-09-30 — audit of best-so-far semantics; item 7 implemented in sbo only (core.py + new test).
@@ -172,3 +182,4 @@ The final summary line of `log.log` now carries the wall time of the whole run (
 - 2026-10-01 — items 12 (show_plots flag) and 13 (conv/hist cropping) in sbo only — first items after the milestone.
 - 2026-10-01 — item 14 (total run time in log.log), sbo only.
 - 2026-10-01 — item 15 (make_gif), sbo only.
+- 2026-10-02 — item 16 (run_naming: timestamp / run_id / params / custom), sbo only.

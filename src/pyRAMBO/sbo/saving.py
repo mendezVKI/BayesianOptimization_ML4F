@@ -16,7 +16,7 @@ persistence.py, not here.
 
 from __future__ import annotations
 from dataclasses import replace
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, Optional, Tuple
 from datetime import datetime, timedelta
 import os
 import logging
@@ -29,11 +29,14 @@ if TYPE_CHECKING:
 
 _RUN_DIR_RE = re.compile(r"^run_(\d+)$")
 
+RUN_NAMINGS = ("timestamp", "run_id", "params", "custom")
+_SAFE_NAME_RE = re.compile(r"[^A-Za-z0-9._-]")
+
 
 def _next_run_name(base_path: str) -> str:
     """'run_<n>', n = 1 + the highest existing run_<n> subfolder of
     base_path (run_1 if none exist yet). Used instead of a timestamp when
-    save_cfg.create_timestamp is False, so two quick runs with the same
+    save_cfg.run_naming == "run_id", so two quick runs with the same
     out_path still land in separate folders.
 
     Not race-safe across concurrent processes (two runs could list the same
@@ -50,14 +53,50 @@ def _next_run_name(base_path: str) -> str:
     return f"run_{(max(existing) + 1) if existing else 1}"
 
 
-def setup_experiment_folder(save_cfg: "SaveConfig") -> Tuple[Optional[str], "SaveConfig"]:
+def _params_run_name(name_params: Optional[Dict[str, object]]) -> str:
+    """'ninit_5_niter_10_xi_0.01' from {'ninit': 5, 'niter': 10, 'xi': 0.01}.
+    Floats use the shortest general format (0.01, 1e-05), and anything not
+    filesystem-safe is replaced by '-'."""
+    if not name_params:
+        raise ValueError(
+            'run_naming="params" needs the parameters to put in the name '
+            "(bayesian_optimization passes n_init, n_iter and xi)."
+        )
+    parts = []
+    for key, value in name_params.items():
+        text = f"{value:g}" if isinstance(value, float) else str(value)
+        parts.append(f"{key}_{_SAFE_NAME_RE.sub('-', text)}")
+    return "_".join(parts)
+
+
+def _custom_run_name(run_name: Optional[str]) -> str:
+    if not run_name or not run_name.strip():
+        raise ValueError('run_naming="custom" needs a non-empty save_cfg.run_name.')
+    if run_name in (".", "..") or any(sep in run_name for sep in ("/", "\\", os.sep)):
+        raise ValueError(
+            f"save_cfg.run_name={run_name!r} must be a plain folder name (no path separators): "
+            "the run folder is always created directly under out_path."
+        )
+    return run_name
+
+
+def setup_experiment_folder(
+    save_cfg: "SaveConfig", name_params: Optional[Dict[str, object]] = None
+) -> Tuple[Optional[str], "SaveConfig"]:
     """Resolve save_cfg.out_path into a run folder and create it on disk.
 
-    Exactly one run-level folder is always created under out_path -- named
-    by timestamp (save_cfg.create_timestamp=True, the default) or by
-    auto-incrementing run_<n> (create_timestamp=False) -- so that two runs
-    pointed at the same out_path never collide or nest into each other,
-    whether or not timestamps are used.
+    Exactly one run-level folder is always created under out_path, never
+    nested in a previous run's folder. Its name is chosen by
+    save_cfg.run_naming:
+
+        "timestamp"  2026-10-02_14-31-07                 (default)
+        "run_id"     run_<n>, n = 1 + the highest existing run_<n>
+        "params"     ninit_5_niter_10_xi_0.01, built from name_params
+        "custom"     save_cfg.run_name
+
+    A folder is never overwritten: if the chosen one already exists
+    (two "timestamp" runs in the same second, the same "params" or "custom"
+    name twice) a FileExistsError says so. "run_id" cannot collide.
 
     Returns (resolved_path, resolved_save_cfg): resolved_save_cfg is a COPY
     of save_cfg with out_path set to the run folder. The SaveConfig object
@@ -69,13 +108,26 @@ def setup_experiment_folder(save_cfg: "SaveConfig") -> Tuple[Optional[str], "Sav
 
     os.makedirs(save_cfg.out_path, exist_ok=True)
 
-    if save_cfg.create_timestamp:
+    naming = save_cfg.run_naming
+    if naming == "timestamp":
         run_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    else:
+    elif naming == "run_id":
         run_name = _next_run_name(save_cfg.out_path)
+    elif naming == "params":
+        run_name = _params_run_name(name_params)
+    elif naming == "custom":
+        run_name = _custom_run_name(save_cfg.run_name)
+    else:
+        raise ValueError(f"save_cfg.run_naming must be one of {RUN_NAMINGS}, got {naming!r}.")
 
     exp_path = os.path.join(save_cfg.out_path, run_name)
-    os.makedirs(exp_path, exist_ok=False)
+    try:
+        os.makedirs(exp_path, exist_ok=False)
+    except FileExistsError:
+        raise FileExistsError(
+            f"Run folder {exp_path} already exists (run_naming={naming!r}); it is never overwritten. "
+            'Change the parameters / run_name, or use run_naming="run_id" or "timestamp".'
+        ) from None
 
     resolved_cfg = replace(save_cfg, out_path=exp_path)  # new object, not save_cfg.out_path = exp_path
     return exp_path, resolved_cfg

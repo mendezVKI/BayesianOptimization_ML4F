@@ -15,13 +15,13 @@ from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Make the `examples` package importable, so this file runs both as
-#     python -m examples.sbo.main_1D_sin_large_scale
+# Make the `simple_cases` package importable, so this file runs both as
+#     python -m simple_cases.sbo.main_1D_sin_large_scale
 # and directly (Spyder / VS Code "Run file"), from any working directory.
-# ONLY the repository root is added -- never examples/ itself -- so shared
-# code is reached as `examples.benchmarks`, never as a bare `benchmarks`.
-# Importing `examples` is what puts src/ on the path, so it has to come
-# before the library import below. See examples/README.md.
+# ONLY the repository root is added -- never simple_cases/ itself -- so shared
+# code is reached as `simple_cases.benchmarks`, never as a bare `benchmarks`.
+# Importing `simple_cases` is what puts src/ on the path, so it has to come
+# before the library import below. See simple_cases/README.md.
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from simple_cases import _common  # noqa: E402
@@ -102,7 +102,7 @@ gp_cfg = bo.GPConfig(
 
 save_cfg = bo.SaveConfig(
     out_path = OUT_PATH,
-    create_timestamp=False,
+    run_naming="run_id",
     plt_all=True,
 )
 
@@ -116,10 +116,7 @@ res = bo.bayesian_optimization(
         ),
     gp_cfg=gp_cfg,
     acq_cfg=bo.AcqConfig(xi=xi),
-    optim_cfg=bo.OptimConfig(
-        method = "random",
-        global_method="refine"
-        ),
+    optim_cfg=bo.OptimConfig(method = "random"),
     save_cfg=save_cfg
 )
 

@@ -3,8 +3,8 @@
 Demonstrates the two-tier persistence layer of pyRAMBO.
 
 Part 1 -- "quick run": default SaveConfig(). Tier 1 (the lightweight
-per-iteration trace) is always on and stays in memory / gets written as a
-tiny trace.npz; no GP snapshots are ever built.
+per-iteration trace) is always on and stays in memory / gets written as
+trace.npz + trace.csv; no GP snapshots are ever built.
 
 Part 2 -- "full run": Tier 2 enabled. Every iteration's full GP state
 (design set, hyperparameters, kernel id, normalization) is flushed to disk
@@ -24,17 +24,17 @@ from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Make the `examples` package importable, so this file runs both as
-#     python -m examples.sbo.main_persistence_demo
+# Make the `simple_cases` package importable, so this file runs both as
+#     python -m simple_cases.sbo.main_persistence_demo
 # and directly (Spyder / VS Code "Run file"), from any working directory.
-# ONLY the repository root is added -- never examples/ itself -- so shared
-# code is reached as `examples.benchmarks`, never as a bare `benchmarks`.
-# Importing `examples` is what puts src/ on the path, so it has to come
-# before the library import below. See examples/README.md.
+# ONLY the repository root is added -- never simple_cases/ itself -- so shared
+# code is reached as `simple_cases.benchmarks`, never as a bare `benchmarks`.
+# Importing `simple_cases` is what puts src/ on the path, so it has to come
+# before the library import below. See simple_cases/README.md.
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from examples import _common  # noqa: E402
-from examples.benchmarks import quadratic_1d  # noqa: E402
+from simple_cases import _common  # noqa: E402
+from simple_cases.benchmarks import quadratic_1d  # noqa: E402
 from pyRAMBO import sbo as bo  # noqa: E402
 from pyRAMBO.sbo import persistence  # noqa: E402
 
@@ -61,7 +61,7 @@ quick_res = bo.bayesian_optimization(
 
 print("Quick run (Tier 1 only)")
 print(f"  best_y = {quick_res.best_y:.4f}")
-print(f"  trace length = {len(quick_res.trace)} (fields: it, x_next, y_next, x_best, y_best, wall_time, acq_value)")
+print(f"  trace length = {len(quick_res.trace)} (fields: it, x_next, y_next, x_best, y_best, wall_time, acq_value, l_c, sigma_f, sigma_y, n_added)")
 print(f"  Tier 2 snapshots allocated? {quick_res.snapshots is not None}")  # False: never built
 
 #%% Part 2 -- full run: Tier 2 enabled, flushed to disk as it goes
@@ -77,7 +77,7 @@ full_res = bo.bayesian_optimization(
     optim_cfg=bo.OptimConfig(n_raw_samples=300),
     save_cfg=bo.SaveConfig(
         out_path=full_out,
-        create_timestamp=False,
+        run_naming="run_id",
         log_enabled=False,
         snapshot_enabled=True,
         snapshot_every=1,
@@ -115,7 +115,7 @@ ax.set_title(f"Posterior reconstructed from disk (iteration {it_to_plot})")
 ax.legend()
 fig.tight_layout()
 fig.savefig(os.path.join(OUT_PATH, "reconstructed_posterior.png"), dpi=200)
-plt.show()
+plt.close()
 
 # Sanity check: the reconstruction must match the live model bit-for-bit.
 live_gp = full_res.states[it_to_plot].gp
