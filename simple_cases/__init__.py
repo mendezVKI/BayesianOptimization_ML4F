@@ -1,17 +1,16 @@
 """
-Runnable examples / tutorials for pyRAMBO (pyRAMBO.sbo, pyRAMBO.mfbo and
-pyRAMBO.mobo).
+Runnable examples / tutorials for pyRAMBO.
 
 This file is the SINGLE place where the examples are made importable. The
 rule it relies on:
 
-    Only the repository ROOT ever goes on sys.path -- never ``examples/``.
+    Only the repository ROOT ever goes on sys.path -- never ``simple_cases/``.
 
-The example folders are then only ever reachable as ``examples.sbo`` etc.,
-and shared code is imported as ``examples.benchmarks`` rather than as a bare
-top-level ``benchmarks`` module. Because the libraries live under the single
-``pyRAMBO`` namespace, the example folders (named sbo/, mfbo/, mobo/) cannot
-shadow them. Importing anything from this package prepends ``src/`` to
+The example folders are then only ever reachable as ``simple_cases.sbo``
+etc., and shared code is imported as ``simple_cases.benchmarks`` rather than
+as a bare top-level ``benchmarks`` module. Because the libraries live under
+the single ``pyRAMBO`` namespace, an example folder named after a subpackage
+(sbo/) cannot shadow it. Importing anything from this package prepends ``src/`` to
 sys.path, so the scripts work straight out of a fresh clone with no install
 step; if you do ``pip install -e .`` that keeps working too, with the
 checkout taking precedence (which is what you want while developing).
@@ -56,7 +55,7 @@ def _assert_library_from_checkout() -> None:
 
     Cannot happen through this package's own bootstrap; it can still happen
     if pyRAMBO was already imported (from somewhere else) before importing
-    ``examples``."""
+    ``simple_cases``."""
 
     if not SRC_ROOT.is_dir():
         return
@@ -84,8 +83,8 @@ def _assert_library_from_checkout() -> None:
     if SRC_ROOT not in origin.parents:
         raise ImportError(
             f"'{name}' resolved to {origin}, not to the library in "
-            f"{SRC_ROOT / name}. It was probably imported before 'examples'; "
-            f"import 'examples' first. See examples/README.md."
+            f"{SRC_ROOT / name}. It was probably imported before 'simple_cases'; "
+            f"import 'simple_cases' first. See simple_cases/README.md."
         )
 
 

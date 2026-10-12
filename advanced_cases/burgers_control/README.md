@@ -8,10 +8,20 @@ each evaluation is one PDE simulation (~0.2 s). The search box is `w_i ∈ [-0.1
 `sbo` (this repo) and `scikit-optimize` (`skopt.gp_minimize`, scikit-learn based) are compared on the
 same cost function, the same initial design and **the same GP/BO settings**.
 
-## Run
+## Requirements
+
+On top of pyRAMBO itself:
 
 ```bash
-python run_comparison.py                        # 5 runs; 10 shared initial points + 150 evaluations per run
+pip install scikit-optimize gymnasium imageio
+```
+
+## Run
+
+From this folder:
+
+```bash
+python run_comparison.py                        # 3 runs; 10 shared initial points + 50 evaluations per run
 python run_comparison.py --n-runs 10 --master-seed 0   # more runs; master seed makes the drawn seeds reproducible
 python run_comparison.py --n-restarts 5         # restarts of the acquisition optimization (default 10); the search-space bounds are set at the top of run_comparison.py
 python run_comparison.py --n-iter 50 --n-runs 2   # quick test
@@ -31,10 +41,9 @@ Outputs, in `results/n_init<..>_n_iter<..>_n_runs<..>/` (one folder per case): `
 | `solvers.py` | the shared configuration, `run_sbo`, `run_skopt`, `run_all` |
 | `plot_comparison.py` | convergence, final best, and time figure |
 | `run_comparison.py` | command-line driver, saves results |
-| `presentation.py` | clean rewrite of the old presentation script (maps, GIFs) |
+| `presentation.py` | space-time maps and GIFs of the uncontrolled and controlled flow |
 | `Burgers/` | the environment (Fabio and Lorenzo); only imports (gymnasium), paths and printing touched |
-| `legacy/` | the original presentation script, unchanged |
-| `assets/` | figures and GIFs produced before the refactor |
+| `assets/` | presentation figures and GIFs |
 
 ## What is identical in both methods
 

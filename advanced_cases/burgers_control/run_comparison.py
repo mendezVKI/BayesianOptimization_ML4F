@@ -2,7 +2,7 @@
 Solve the Burgers control case with sbo and with scikit-optimize (same GP, same
 hyperparameter optimization, same normalization), time both and plot the comparison.
 
-    python run_comparison.py                       # 5 runs, each with its own random seed
+    python run_comparison.py                       # 3 runs, each with its own random seed
     python run_comparison.py --n-runs 10 --master-seed 0   # more runs, reproducible seeds
     python run_comparison.py --n-iter 50 --n-runs 2        # quick run
     python run_comparison.py --plot-only           # re-plot (same --n-init/--n-iter/--n-runs as the run)

@@ -43,5 +43,5 @@ packages = ["pyRAMBO", "pyRAMBO.sbo", "pyRAMBO.mfbo", "pyRAMBO.mobo"]
 # the tests always exercise the working tree rather than whatever version
 # happens to be installed in the environment.
 pythonpath = ["src"]
-# Collect only tests/, never the example scripts or legacy/.
+# Collect only tests/, never the example scripts.
 testpaths = ["tests"]

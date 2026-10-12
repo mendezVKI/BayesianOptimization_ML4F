@@ -6,7 +6,7 @@ of the uncontrolled system and of a controlled one.
     python presentation.py --gifs               # also write the GIFs (slower)
     python presentation.py --weights 0.05 -0.02 0.01 --gifs
 
-Outputs go to assets/. (The original, unrefactored script is kept in legacy/.)
+Outputs go to assets/.
 
 @authors: Yannick Lecomte and Miguel A. Mendez
 """

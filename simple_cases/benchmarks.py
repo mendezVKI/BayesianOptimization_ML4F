@@ -12,12 +12,12 @@ where:
 Designed for development, debugging, and performance evaluation
 of optimization algorithms.
 
-Import this as a module of the examples package:
+Import this as a module of the simple_cases package:
 
-    from examples.benchmarks import branin_2d
+    from simple_cases.benchmarks import branin_2d
 
 and never as a bare top-level ``import benchmarks``, which would require
-putting ``examples/`` on sys.path. See examples/README.md.
+putting ``simple_cases/`` on sys.path. See simple_cases/README.md.
 
 Author: Yannick Lecomte
 """
