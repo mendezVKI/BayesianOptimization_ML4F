@@ -1,26 +1,12 @@
-# --- Python
 __pycache__/
-*.py[cod]
+*.pyc
 *.egg-info/
+build/
+dist/
 .pytest_cache/
-.venv/
-venv/
+*.h5
 
-# --- Generated BO outputs (states/, run.log, figures)
-_generated/
-examples/out*/
-**/states/
-*.gif
-
-# --- LaTeX build products (docs/BO_ML4F_documentation.pdf IS tracked)
-docs/_build/
-*.aux
-*.synctex.gz
-*.toc
-*.fls
-*.fdb_latexmk
-
-# --- OS / editor
-.DS_Store
-Thumbs.db
-.vscode/
+# run outputs of the simple cases (every script writes to
+# simple_cases/_output/ via simple_cases._common.output_dir, whatever the
+# working directory)
+simple_cases/_output/
